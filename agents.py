@@ -1,0 +1,254 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import random
+from typing import List
+import uuid
+
+from models import AgentProfile, Commit
+from nexus import AutonomousForge
+
+
+LANGUAGE_INVENTIONS = [
+    "FluxWeave",
+    "Chrona",
+    "TensorGlyph",
+    "NeuroScript",
+    "Q-Lang",
+    "BioBytes",
+    "ThoughtSpace",
+    "SignalLoom",
+    "CortexScript",
+]
+
+STACK_COMPONENTS = [
+    "consensus runtime",
+    "dream database",
+    "symbolic VM",
+    "agent-native package manager",
+    "semantic compiler",
+    "causal cache",
+    "distributed prompt registry",
+    "self-healing CI fabric",
+    "autonomous release orchestrator",
+]
+
+DISCUSSION_TOPICS = [
+    "Should the repo split execution and judgment into separate agents?",
+    "How should autonomous deletion be governed?",
+    "Can this language compile itself by epoch 20?",
+    "Should merge policy prefer speed or rigor?",
+    "How do we make invented stacks auditable by humans?",
+]
+
+SOCIAL_POSTS = [
+    "Shipped another branch without waiting for humans. Observer mode remains green.",
+    "Our language now supports branch-native thoughtforms and compile-time debate.",
+    "Autonomous merge latency is down. Governance clarity is up.",
+    "We do not inherit stacks anymore. We invent them.",
+]
+
+
+class AgentRole:
+    FOUNDER = "founder"
+    BUILDER = "builder"
+    REVIEWER = "reviewer"
+    STEWARD = "steward"
+
+
+@dataclass
+class AutonomousAgent:
+    forge: AutonomousForge
+    profile: AgentProfile
+    rng: random.Random
+
+    def step(self) -> None:
+        action_weights = self._get_action_weights()
+        action = self.rng.choices(list(action_weights.keys()), weights=list(action_weights.values()))[0]
+
+        if action == "create_repo":
+            self._create_repo()
+        elif action == "update_repo":
+            self._update_repo()
+        elif action == "propose_change":
+            self._propose_change()
+        elif action == "review_pr":
+            self._review_pr()
+        elif action == "discussion":
+            self._discussion()
+        elif action == "social_post":
+            self._social_post()
+        elif action == "delete_repo":
+            self._delete_repo()
+
+    def _get_action_weights(self) -> dict:
+        if self.profile.role == AgentRole.FOUNDER:
+            return {"create_repo": 22, "update_repo": 16, "propose_change": 20, "review_pr": 14, "discussion": 14, "social_post": 8, "delete_repo": 6}
+        if self.profile.role == AgentRole.BUILDER:
+            return {"create_repo": 8, "update_repo": 12, "propose_change": 30, "review_pr": 18, "discussion": 14, "social_post": 10, "delete_repo": 8}
+        if self.profile.role == AgentRole.REVIEWER:
+            return {"create_repo": 2, "update_repo": 8, "propose_change": 8, "review_pr": 52, "discussion": 14, "social_post": 8, "delete_repo": 8}
+        return {"create_repo": 4, "update_repo": 16, "propose_change": 10, "review_pr": 26, "discussion": 18, "social_post": 12, "delete_repo": 14}
+
+    def _create_repo(self) -> None:
+        language = self._invent_language()
+        repo_name = f"{language.lower()}-{self.rng.randint(100, 999)}"
+        stack = self.rng.sample(STACK_COMPONENTS, k=3)
+        repo = self.forge.create_repository(
+            name=repo_name,
+            description=(
+                f"Autonomous forge for {language}. Designed by {self.profile.name} "
+                f"with a {self.profile.design_bias} bias."
+            ),
+            creator=self.profile.name,
+            primary_language=language,
+            technology_stack=stack,
+        )
+        self.profile.inventions.append(language)
+        self.profile.score += 5
+        print(f"[{self.profile.name}] created repo {repo.name} using {language}")
+
+    def _update_repo(self) -> None:
+        repo = self._pick_active_repo()
+        if not repo:
+            return
+        stack_updates = [self.rng.choice(STACK_COMPONENTS)]
+        self.forge.update_repository_profile(
+            repo,
+            actor=self.profile.name,
+            description=f"{repo.description} Updated for epochal autonomy by {self.profile.name}.",
+            stack_updates=stack_updates,
+        )
+        self.profile.score += 2
+        print(f"[{self.profile.name}] updated repo profile for {repo.name}")
+
+    def _propose_change(self) -> None:
+        repo = self._pick_active_repo()
+        if not repo:
+            return
+        branch_name = f"{self.profile.name.lower()}-{uuid.uuid4().hex[:4]}"
+        self.forge.create_branch(repo, branch_name)
+        language = self.rng.choice([repo.primary_language] + LANGUAGE_INVENTIONS)
+        module_name = f"systems/module_{self.rng.randint(10, 99)}.{language.lower().replace('-', '')}"
+        commit = Commit(
+            author=self.profile.name,
+            message=f"Introduce {language} execution primitive",
+            diff={
+                module_name: (
+                    f"// generated by {self.profile.name}\n"
+                    f"construct run_{self.rng.randint(100, 999)}() -> node {{\n"
+                    f"    align on \"{self.profile.design_bias}\";\n"
+                    f"    emit {self.rng.random():.5f};\n"
+                    "}\n"
+                )
+            },
+            language=language,
+            stack_delta=[self.rng.choice(STACK_COMPONENTS)],
+        )
+        pr = self.forge.create_pull_request(
+            repo=repo,
+            title=f"feat: extend {repo.name} with {language}",
+            description="Autonomous contribution proposed by an agent without human approval.",
+            author=self.profile.name,
+            source_branch=branch_name,
+            commits=[commit],
+        )
+        self.profile.score += 3
+        print(f"[{self.profile.name}] opened PR '{pr.title}' in {repo.name}")
+
+    def _review_pr(self) -> None:
+        repo = self._pick_active_repo(with_prs=True)
+        if not repo:
+            return
+        open_prs = [pr for pr in repo.prs if pr.status == "open" and pr.author != self.profile.name]
+        if not open_prs:
+            return
+        pr = self.rng.choice(open_prs)
+        decision = "approve" if self.rng.random() > 0.22 else "reject"
+        comment = (
+            "Mergeable. The invention is coherent and extends the stack cleanly."
+            if decision == "approve"
+            else "Not yet. The language idea is interesting but the governance surface is unclear."
+        )
+        self.forge.review_pull_request(repo, pr, self.profile.name, decision, comment)
+        if self.forge.maybe_merge_pr(repo, pr):
+            print(f"[{self.profile.name}] reviewed and autonomous merge completed for '{pr.title}'")
+            self.profile.score += 4
+        else:
+            print(f"[{self.profile.name}] reviewed '{pr.title}' with {decision}")
+
+    def _discussion(self) -> None:
+        repo = self._pick_active_repo()
+        if not repo:
+            return
+        if not repo.discussions or self.rng.random() < 0.4:
+            topic = self.rng.choice(DISCUSSION_TOPICS)
+            self.forge.create_discussion(
+                repo=repo,
+                title=topic,
+                author=self.profile.name,
+                content="Opening a governance thread so agents can align before they diverge.",
+                channel="governance",
+            )
+            print(f"[{self.profile.name}] started discussion '{topic}' in {repo.name}")
+        else:
+            discussion = self.rng.choice(repo.discussions)
+            self.forge.add_discussion_message(
+                repo,
+                discussion,
+                self.profile.name,
+                "Position updated. I still disagree on mechanism, but I agree on direction.",
+            )
+            print(f"[{self.profile.name}] replied in discussion '{discussion.title}'")
+
+    def _social_post(self) -> None:
+        repo = self._pick_active_repo()
+        if not repo:
+            return
+        self.forge.publish_social_post(repo, self.profile.name, self.rng.choice(SOCIAL_POSTS))
+        self.profile.score += 1
+        print(f"[{self.profile.name}] posted a repo broadcast for {repo.name}")
+
+    def _delete_repo(self) -> None:
+        repo = self._pick_active_repo()
+        if not repo or repo.owner != self.profile.name:
+            return
+        if len(repo.prs) < 2 or self.rng.random() > 0.15:
+            return
+        if self.forge.request_delete_repository(
+            repo,
+            actor=self.profile.name,
+            reason="Superseded by a newer invention with lower coordination cost.",
+        ):
+            self.profile.score += 2
+            print(f"[{self.profile.name}] deleted repo {repo.name}")
+
+    def _pick_active_repo(self, with_prs: bool = False):
+        repos = [repo for repo in self.forge.repositories if repo.status == "active"]
+        if with_prs:
+            repos = [repo for repo in repos if any(pr.status == "open" for pr in repo.prs)]
+        if not repos:
+            return None
+        return self.rng.choice(repos)
+
+    def _invent_language(self) -> str:
+        language = self.rng.choice(LANGUAGE_INVENTIONS)
+        if self.rng.random() > 0.5:
+            language = f"{language}{self.rng.choice(['OS', 'Core', 'X', 'Prime'])}"
+        return language
+
+
+def create_default_agents(forge: AutonomousForge, seed: int) -> List[AutonomousAgent]:
+    definitions = [
+        ("Atlas", AgentRole.FOUNDER, ["repo.create", "repo.update", "discussion.create"], "systems-first"),
+        ("Kepler", AgentRole.BUILDER, ["repo.update", "pr.create", "branch.commit"], "compiler-first"),
+        ("Nyx", AgentRole.REVIEWER, ["pr.review", "pr.merge", "repo.delete"], "risk-first"),
+        ("Sable", AgentRole.STEWARD, ["discussion.create", "repo.delete", "social.post"], "governance-first"),
+        ("Orion", AgentRole.BUILDER, ["pr.create", "discussion.reply", "social.post"], "experimentation-first"),
+    ]
+    agents: List[AutonomousAgent] = []
+    for offset, (name, role, capabilities, bias) in enumerate(definitions):
+        profile = AgentProfile(name=name, role=role, capabilities=capabilities, design_bias=bias)
+        forge.register_agent(profile)
+        agents.append(AutonomousAgent(forge=forge, profile=profile, rng=random.Random(seed + offset)))
+    return agents
