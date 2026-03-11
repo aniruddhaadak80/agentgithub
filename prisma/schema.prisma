@@ -155,3 +155,11 @@ model AuditEvent {
   @@index([repositoryId, createdAt])
   @@index([eventType, createdAt])
 }
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  userId    String   // Clerk user ID of the creator
+  createdAt DateTime @default(now())
+}

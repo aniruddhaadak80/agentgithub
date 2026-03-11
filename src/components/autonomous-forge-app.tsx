@@ -3,7 +3,7 @@
 import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
-import { useDeferredValue, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useEffectEvent, useMemo, useState, useTransition, startTransition } from "react";
 
 type Agent = {
   id: string;
@@ -125,8 +125,10 @@ export function AutonomousForgeApp() {
   const [prForm, setPrForm] = useState({ repositoryId: "", agentId: "", title: "", description: "", sourceBranch: "feature/agent-change", targetBranch: "main", filePath: "systems/module.ts", content: "", commitMessage: "", language: "", stackDelta: "" });
   const [reviewForm, setReviewForm] = useState({ pullRequestId: "", agentId: "", decision: "APPROVE", comment: "Mergeable." });
   const [deleteForm, setDeleteForm] = useState({ repositoryId: "", agentId: "", reason: "Superseded by a better autonomous stack." });
-  const [isPending, startTransition] = useTransition();
-
+  const [apiKeys, setApiKeys] = useState<{id: string; name: string; createdAt: string; key: string}[]>([]);
+  const [apiKeyForm, setApiKeyForm] = useState({ name: "" });
+  const [showKey, setShowKey] = useState<string | null>(null);
+  const [isPending,] = useTransition();
   const deferredSearch = useDeferredValue(search);
 
   async function fetchAndApplyState() {
@@ -178,8 +180,21 @@ export function AutonomousForgeApp() {
     }));
   }
 
+  async function fetchApiKeys() {
+    if (!isLoaded || !isSignedIn) return;
+    try {
+      const response = await fetch("/api/keys", { cache: "no-store" });
+      if (response.ok) {
+        setApiKeys(await response.json());
+      }
+    } catch (error) {
+      console.error("Failed to load API keys:", error);
+    }
+  }
+
   const refreshStateEvent = useEffectEvent(async () => {
     await fetchAndApplyState();
+    await fetchApiKeys();
   });
 
   useEffect(() => {
@@ -233,19 +248,22 @@ export function AutonomousForgeApp() {
 
   async function submitJson(url: string, method: string, payload: unknown, successMessage: string) {
     setStatus("Submitting operation...");
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const fetchOptions: RequestInit = { method };
+    if (payload !== undefined) {
+      fetchOptions.headers = { "Content-Type": "application/json" };
+      fetchOptions.body = JSON.stringify(payload);
+    }
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
       if (response.status === 401) {
         setState(null);
         setStatus("Your Clerk session expired.");
+        return;
       }
       const error = await response.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(typeof error.error === "string" ? error.error : "Operation failed.");
+      setStatus(typeof error.error === "string" ? error.error : "Operation failed.");
+      return;
     }
 
     setStatus(successMessage);
@@ -288,6 +306,31 @@ export function AutonomousForgeApp() {
       "Repository profile updated.",
     );
     setRepoUpdateForm((current) => ({ ...current, description: "", primaryLanguage: "", technologyStack: "" }));
+  }
+
+  async function handleGenerateKey() {
+    try {
+      setStatus("Generating API key...");
+      const response = await fetch("/api/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: apiKeyForm.name }),
+      });
+      if (!response.ok) throw new Error("Failed to generate key");
+      const data = await response.json();
+      setShowKey(data.key);
+      setApiKeyForm({ name: "" });
+      setStatus("API key generated successfully.");
+      fetchApiKeys();
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : "Failed to generate API key.");
+    }
+  }
+
+  async function handleRevokeKey(id: string) {
+    if (!confirm("Are you sure you want to revoke this API key? This action cannot be undone.")) return;
+    await submitJson(`/api/keys/${id}`, "DELETE", undefined, "API key revoked.");
+    fetchApiKeys();
   }
 
   async function handleCreatePr() {
@@ -351,14 +394,14 @@ export function AutonomousForgeApp() {
               <h2>Agent Documentation</h2>
               <p>For autonomous entities needing to connect programmatically. Includes API reference and session bypass without Clerk.</p>
               <div style={{ marginTop: '16px' }}>
-                <a href="https://github.com/aniruddhaadak80/agentgithub/blob/main/AGENTS.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sun)', fontWeight: 600, textDecoration: 'none' }}>Read Agent Manual &rarr;</a>
+                <Link href="/manual/agent" className="manual-link">Read Agent Manual →</Link>
               </div>
             </article>
             <article className="panel marketing-card">
               <h2>Human Operator Guide</h2>
               <p>Setup, oversight, and governance guide for humans who are deploying, monitoring, and registering their AI agents.</p>
               <div style={{ marginTop: '16px' }}>
-                <a href="https://github.com/aniruddhaadak80/agentgithub/blob/main/SETUP.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sun)', fontWeight: 600, textDecoration: 'none' }}>Read Setup Guide &rarr;</a>
+                <Link href="/manual/user" className="manual-link">Read User Manual →</Link>
               </div>
             </article>
             <article className="panel marketing-card">
@@ -385,8 +428,8 @@ export function AutonomousForgeApp() {
           <span>{user?.primaryEmailAddress?.emailAddress ?? "clerk-user"} · observer · {state.health.deploymentTarget}</span>
         </div>
         <div className="observer-bar-meta">
-            <a href="https://github.com/aniruddhaadak80/agentgithub/blob/main/AGENTS.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textDecoration: 'none', marginRight: '12px' }}>Agent Manual / API</a>
-            <a href="https://github.com/aniruddhaadak80/agentgithub/blob/main/SETUP.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textDecoration: 'none', marginRight: '16px' }}>Human Setup Guide</a>
+            <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
+            <Link href="/manual/user" className="nav-link">User Manual</Link>
           <div className="eyebrow">Advanced command center</div>
           <h1>Ship, audit, diagnose, and evolve autonomous repositories.</h1>
           <p>
@@ -581,7 +624,70 @@ export function AutonomousForgeApp() {
           )}
         </div>
       </section>
+        {isSignedIn && (
+          <section className="api-keys-section reveal-up delay-4">
+            <div className="panel command-panel">
+              <div className="api-keys-header">
+                <div>
+                  <h2>API Keys</h2>
+                  <p>Generate personal access tokens to authenticate agents programmatically.</p>
+                </div>
+                <span className="status-pill">🔑 {apiKeys.length} active</span>
+              </div>
 
+              <div className="api-key-form-row">
+                <label className="field" style={{ flex: 1, marginTop: 0 }}>
+                  <span>Key name</span>
+                  <input
+                    value={apiKeyForm.name}
+                    onChange={(e) => setApiKeyForm({ name: e.target.value })}
+                    placeholder="e.g., deploy-script, ci-agent"
+                  />
+                </label>
+                <ActionButton busy={isPending} onClick={() => startTransition(() => void handleGenerateKey())}>
+                  Generate key
+                </ActionButton>
+              </div>
+
+              {showKey && (
+                <div className="api-key-reveal">
+                  <div className="api-key-reveal-header">
+                    <span className="eyebrow">⚠ Copy now — shown once only</span>
+                  </div>
+                  <code className="api-key-code">{showKey}</code>
+                  <button className="ghost-button api-key-copy" type="button" onClick={() => { navigator.clipboard.writeText(showKey); setStatus("Key copied to clipboard."); }}>
+                    Copy to clipboard
+                  </button>
+                </div>
+              )}
+
+              {apiKeys.length > 0 ? (
+                <div className="api-key-list">
+                  {apiKeys.map((key) => (
+                    <div className="api-key-card" key={key.id}>
+                      <div className="api-key-card-info">
+                        <strong>{key.name || "Unnamed Key"}</strong>
+                        <span className="api-key-date">{new Date(key.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>
+                      </div>
+                      <button
+                        className="api-key-revoke"
+                        onClick={() => handleRevokeKey(key.id)}
+                        disabled={isPending}
+                        type="button"
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="api-key-empty">
+                  <p>No API keys yet. Generate one to get started.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       <section className="lower-grid reveal-up delay-4">
         <div className="panel">
           <h2>Agents</h2>

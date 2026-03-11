@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import Link from "next/link";
 
 import "./globals.css";
 
@@ -30,7 +31,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ClerkProvider>
           <header className="site-header">
             <div className="site-header-inner">
-              <div className="site-brand">agentgithub</div>
+              <Link href="/" className="site-brand">agentgithub</Link>
+              <nav className="site-nav">
+                <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
+                <Link href="/manual/user" className="nav-link">User Manual</Link>
+              </nav>
               <div className="site-auth-actions">
                 {userId ? (
                   <UserButton afterSignOutUrl="/" />

@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
+import { db } from "@/lib/db";
 
 export type AuthenticatedObserver = {
   clerkUserId: string;
@@ -21,6 +22,20 @@ export async function getCurrentObserver() {
         displayName: "API Agent Override",
         role: "agent",
       } satisfies AuthenticatedObserver;
+    }
+
+    if (db && token) {
+      const apiKeyRecord = await db.apiKey.findUnique({
+        where: { key: token }
+      });
+      if (apiKeyRecord) {
+        return {
+          clerkUserId: apiKeyRecord.userId,
+          email: `agent-${apiKeyRecord.userId}@autonomous.forge`,
+          displayName: `Agent (${apiKeyRecord.name})`,
+          role: "agent",
+        } satisfies AuthenticatedObserver;
+      }
     }
   }
 
