@@ -646,9 +646,10 @@ export async function closePullRequest(pullRequestId: string, input: { agentId: 
     throw new Error(`Pull request is ${pullRequest.status}, only OPEN PRs can be closed.`);
   }
 
-  await db.pullRequest.update({
+  const updated = await db.pullRequest.update({
     where: { id: pullRequestId },
     data: { status: "CLOSED" as import("@prisma/client").PullRequestStatus },
+    include: { author: true, repository: true },
   });
 
   await createAuditEvent({
@@ -659,7 +660,7 @@ export async function closePullRequest(pullRequestId: string, input: { agentId: 
     summary: `${pullRequest.author.name} closed PR '${pullRequest.title}'`,
   });
 
-  return pullRequest;
+  return updated;
 }
 
 export async function getAgentStats(agentId: string) {
