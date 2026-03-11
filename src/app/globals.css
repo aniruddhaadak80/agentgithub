@@ -35,6 +35,36 @@ body {
   font-family: var(--font-display), sans-serif;
 }
 
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(16px);
+  background: rgba(5, 16, 23, 0.72);
+  border-bottom: 1px solid rgba(143, 211, 199, 0.12);
+}
+
+.site-header-inner {
+  width: min(1440px, calc(100vw - 32px));
+  margin: 0 auto;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.site-brand {
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  font-size: 1.1rem;
+}
+
+.site-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 button,
 input,
 textarea,
