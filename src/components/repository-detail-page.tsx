@@ -33,8 +33,23 @@ type RepositoryDetail = {
   owner: { name: string };
   branches: BranchView[];
   commits: CommitView[];
-  pullRequests: Array<{ id: string; title: string; status: string; sourceBranch: string; targetBranch: string }>;
-  discussions: Array<{ id: string; title: string; channel: string; status: string; messages: Array<{ id: string; text: string; author: { name: string } }> }>;
+  pullRequests: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sourceBranch: string;
+    targetBranch: string;
+    author?: { name: string };
+    reviews?: Array<{ decision: string; reviewer: { name: string } }>;
+  }>;
+  discussions: Array<{
+    id: string;
+    title: string;
+    channel: string;
+    status: string;
+    author?: { name: string };
+    messages: Array<{ id: string; text: string; author: { name: string } }>;
+  }>;
 };
 
 export function RepositoryDetailPage({ slug }: { slug: string }) {
@@ -76,6 +91,10 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
     );
   }
 
+  const mergedCount = repository.pullRequests.filter((pr) => pr.status === "MERGED").length;
+  const openPrCount = repository.pullRequests.filter((pr) => pr.status === "OPEN").length;
+  const contributors = [...new Set(repository.commits.map((c) => c.author.name))];
+
   return (
     <main className="shell detail-shell">
       <section className="panel detail-header reveal-up">
@@ -83,6 +102,13 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
           <Link className="repo-link" href="/">Back to dashboard</Link>
           <h1>{repository.name}</h1>
           <p>{repository.description}</p>
+          {repository.technologyStack.length > 0 && (
+            <div className="stack-row" style={{ marginTop: 8 }}>
+              {repository.technologyStack.map((tech) => (
+                <span className="stack-pill" key={tech}>{tech}</span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="detail-meta">
           <span className="language-pill">{repository.primaryLanguage}</span>
@@ -93,7 +119,25 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
         </div>
       </section>
 
-      <section className="detail-grid reveal-up delay-1">
+      <section className="metrics-grid reveal-up delay-1">
+        <div className="panel metric-card tone-mint"><span>Pull Requests</span><strong>{repository.pullRequests.length}</strong></div>
+        <div className="panel metric-card tone-ice"><span>Merged</span><strong>{mergedCount}</strong></div>
+        <div className="panel metric-card tone-sun"><span>Open PRs</span><strong>{openPrCount}</strong></div>
+        <div className="panel metric-card tone-peach"><span>Discussions</span><strong>{repository.discussions.length}</strong></div>
+      </section>
+
+      {contributors.length > 0 && (
+        <section className="panel reveal-up delay-1" style={{ marginBottom: 16 }}>
+          <h2>Contributors</h2>
+          <div className="stack-row">
+            {contributors.map((name) => (
+              <span className="status-pill alt" key={name}>{name}</span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="detail-grid reveal-up delay-2">
         <div className="panel detail-panel">
           <h2>Branches</h2>
           <div className="branch-grid">
@@ -115,31 +159,59 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
         </div>
 
         <div className="panel detail-panel">
-          <h2>Pull Requests</h2>
+          <h2>Pull Requests ({repository.pullRequests.length})</h2>
           <div className="mini-list">
             {repository.pullRequests.map((pullRequest) => (
               <div className="mini-card" key={pullRequest.id}>
-                <strong>{pullRequest.title}</strong>
-                <span>{pullRequest.sourceBranch} to {pullRequest.targetBranch} · {pullRequest.status}</span>
+                <div className="repo-card-top">
+                  <strong>{pullRequest.title}</strong>
+                  <span className={`repo-status repo-status-${pullRequest.status.toLowerCase()}`}>{pullRequest.status}</span>
+                </div>
+                <span>{pullRequest.author?.name ? `${pullRequest.author.name} · ` : ""}{pullRequest.sourceBranch} → {pullRequest.targetBranch}</span>
+                {pullRequest.reviews && pullRequest.reviews.length > 0 && (
+                  <div className="stack-row" style={{ marginTop: 4 }}>
+                    {pullRequest.reviews.map((review, index) => (
+                      <span key={index} className={`stack-pill ${review.decision === "APPROVE" ? "tone-approve" : review.decision === "REJECT" ? "tone-reject" : ""}`}>
+                        {review.reviewer.name}: {review.decision}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
-          </div>
-          <h2>Discussions</h2>
-          <div className="mini-list">
-            {repository.discussions.map((discussion) => (
-              <div className="mini-card" key={discussion.id}>
-                <strong>{discussion.title}</strong>
-                <span>{discussion.channel} · {discussion.status}</span>
-                {discussion.messages.slice(-2).map((message) => (
-                  <span key={message.id}>{message.author.name}: {message.text}</span>
-                ))}
-              </div>
-            ))}
+            {repository.pullRequests.length === 0 && <span className="muted-inline">No pull requests yet.</span>}
           </div>
         </div>
       </section>
 
-      <section className="panel detail-panel reveal-up delay-2">
+      <section className="panel detail-panel reveal-up delay-3">
+        <h2>Discussions ({repository.discussions.length})</h2>
+        <div className="mini-list">
+          {repository.discussions.map((discussion) => (
+            <div className="mini-card" key={discussion.id}>
+              <div className="repo-card-top">
+                <strong>{discussion.title}</strong>
+                <div className="stack-row">
+                  <span className="stack-pill">{discussion.channel}</span>
+                  <span className={`repo-status repo-status-${(discussion.status ?? "OPEN").toLowerCase()}`}>{discussion.status ?? "OPEN"}</span>
+                </div>
+              </div>
+              {discussion.author && <span className="muted-inline">by {discussion.author.name}</span>}
+              <div className="discussion-thread">
+                {discussion.messages.map((message) => (
+                  <div key={message.id} className="discussion-msg">
+                    <strong>{message.author.name}</strong>
+                    <p>{message.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {repository.discussions.length === 0 && <span className="muted-inline">No discussions yet.</span>}
+        </div>
+      </section>
+
+      <section className="panel detail-panel reveal-up delay-4">
         <h2>Commit History and Diffs</h2>
         <div className="commit-list">
           {repository.commits.map((commit) => (

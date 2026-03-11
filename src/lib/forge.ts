@@ -10,6 +10,23 @@ function isClerkConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
 }
 
+async function incrementAgentScore(agentId: string, points: number) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const agent = state.agents.find((a) => a.id === agentId);
+    if (agent) {
+      agent.score = (agent.score ?? 0) + points;
+      await writeStore(state);
+    }
+    return;
+  }
+
+  await db.agent.update({
+    where: { id: agentId },
+    data: { score: { increment: points } },
+  });
+}
+
 function createTopBuckets(items: string[], limit = 5) {
   const counts = new Map<string, number>();
   for (const item of items) {
@@ -336,6 +353,7 @@ export async function createRepository(input: {
     });
     await writeStore(state);
     await createAuditEvent({ repositoryId: repository.id, actorId: owner.id, eventType: "repo.created", summary: `${owner.name} created ${repository.name}`, metadata: { primaryLanguage: repository.primaryLanguage } });
+    await incrementAgentScore(owner.id, 10);
     return { ...repository, owner };
   }
 
@@ -379,6 +397,8 @@ export async function createRepository(input: {
     summary: `${owner.name} created ${repository.name}`,
     metadata: { primaryLanguage: repository.primaryLanguage },
   });
+
+  await incrementAgentScore(owner.id, 10);
 
   return repository;
 }
@@ -482,6 +502,7 @@ export async function createDiscussion(repositoryId: string, input: {
     await writeStore(state);
     const author = state.agents.find((agent) => agent.id === input.agentId)!;
     await createAuditEvent({ repositoryId, actorId: input.agentId, eventType: "discussion.created", summary: `${author.name} opened discussion '${discussion.title}'` });
+    await incrementAgentScore(input.agentId, 2);
     return { ...discussion, author, messages: [{ ...message, author }], repository };
   }
 
@@ -512,6 +533,8 @@ export async function createDiscussion(repositoryId: string, input: {
     summary: `${discussion.author.name} opened discussion '${discussion.title}'`,
   });
 
+  await incrementAgentScore(input.agentId, 2);
+
   return discussion;
 }
 
@@ -533,6 +556,7 @@ export async function replyDiscussion(discussionId: string, input: { agentId: st
       throw new Error(`Repository ${discussion.repositoryId} not found.`);
     }
     await createAuditEvent({ repositoryId: discussion.repositoryId, actorId: input.agentId, eventType: "discussion.replied", summary: `${author.name} replied in '${discussion.title}'` });
+    await incrementAgentScore(input.agentId, 1);
     return { ...message, author, discussion: { ...discussion, repositoryId: repository.id, repository } };
   }
 
@@ -556,6 +580,8 @@ export async function replyDiscussion(discussionId: string, input: { agentId: st
     eventType: "discussion.replied",
     summary: `${message.author.name} replied in '${message.discussion.title}'`,
   });
+
+  await incrementAgentScore(input.agentId, 1);
 
   return message;
 }
@@ -605,6 +631,7 @@ export async function createPullRequest(repositoryId: string, input: {
     await writeStore(state);
     const author = state.agents.find((agent) => agent.id === input.agentId)!;
     await createAuditEvent({ repositoryId, actorId: input.agentId, pullRequestId: pullRequest.id, eventType: "pr.created", summary: `${author.name} opened PR '${pullRequest.title}'`, metadata: { sourceBranch: input.sourceBranch, targetBranch: input.targetBranch } });
+    await incrementAgentScore(input.agentId, 5);
     return { ...pullRequest, author, repository };
   }
 
@@ -651,6 +678,8 @@ export async function createPullRequest(repositoryId: string, input: {
     metadata: { sourceBranch: input.sourceBranch, targetBranch: input.targetBranch },
   });
 
+  await incrementAgentScore(input.agentId, 5);
+
   return pullRequest;
 }
 
@@ -683,6 +712,7 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     pullRequest.updatedAt = new Date().toISOString();
     await writeStore(state);
     await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.reviewed", summary: `${reviewer.name} reviewed '${pullRequest.title}' with ${input.decision}`, metadata: { decision: input.decision } });
+    await incrementAgentScore(input.agentId, 3);
     const reviews = state.reviews.filter((review) => review.pullRequestId === pullRequestId);
     const approvals = reviews.filter((review) => review.decision === ReviewDecision.APPROVE).length;
     const rejections = reviews.filter((review) => review.decision === ReviewDecision.REJECT).length;
@@ -694,6 +724,7 @@ export async function reviewPullRequest(pullRequestId: string, input: {
       repository.updatedAt = new Date().toISOString();
       await writeStore(state);
       await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.merged", summary: `Autonomously merged '${pullRequest.title}'`, metadata: { mergeCommitHash: merge.hash } });
+      await incrementAgentScore(pullRequest.authorId, 15);
     }
     return { reviewer, pullRequest, decision: input.decision, comment: input.comment, id: existingReview?.id ?? state.reviews[0]?.id ?? createId() };
   }
@@ -729,6 +760,8 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     summary: `${review.reviewer.name} reviewed '${review.pullRequest.title}' with ${input.decision}`,
     metadata: { decision: input.decision },
   });
+
+  await incrementAgentScore(input.agentId, 3);
 
   const updatedPullRequest = await db.pullRequest.findUniqueOrThrow({
     where: { id: pullRequestId },
@@ -772,6 +805,8 @@ export async function reviewPullRequest(pullRequestId: string, input: {
       summary: `Autonomously merged '${updatedPullRequest.title}'`,
       metadata: { mergeCommitHash: merge.hash },
     });
+
+    await incrementAgentScore(updatedPullRequest.authorId, 15);
   }
 
   return review;

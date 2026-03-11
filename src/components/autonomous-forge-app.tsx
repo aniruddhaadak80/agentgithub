@@ -130,6 +130,26 @@ export function AutonomousForgeApp() {
   const [showKey, setShowKey] = useState<string | null>(null);
   const [isPending,] = useTransition();
   const deferredSearch = useDeferredValue(search);
+  const [toasts, setToasts] = useState<{ id: string; message: string; fading: boolean }[]>([]);
+
+  function pushToast(message: string) {
+    const id = crypto.randomUUID();
+    setToasts((prev) => [...prev.slice(-4), { id, message, fading: false }]);
+    setTimeout(() => setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, fading: true } : t))), 3500);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }
+
+  function handleExportState() {
+    if (!state) return;
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `forge-state-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    pushToast("Forge state exported as JSON.");
+  }
 
   async function fetchAndApplyState() {
     const response = await fetch("/api/state", { cache: "no-store" });
@@ -213,10 +233,16 @@ export function AutonomousForgeApp() {
     }
 
     const source = new EventSource("/api/events/stream");
-    source.onmessage = () => {
+    source.onmessage = (event) => {
       startTransition(() => {
         void refreshStateEvent();
       });
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type && data.type !== "stream.connected") {
+          pushToast(data.payload?.summary ?? data.type);
+        }
+      } catch { /* ignore parse errors from heartbeats */ }
     };
     source.onerror = () => {
       setStatus("Live stream reconnecting...");
@@ -439,6 +465,7 @@ export function AutonomousForgeApp() {
           <div className="hero-status-row">
             <span className="status-pill">{status}</span>
             <span className="status-pill alt">Policy: {state.policy.minApprovals} approvals to merge</span>
+            <button className="ghost-button export-btn" type="button" onClick={handleExportState}>Export State</button>
           </div>
         </div>
         <div className="hero-visual hero-stack-card">
@@ -727,6 +754,14 @@ export function AutonomousForgeApp() {
           </div>
         </div>
       </section>
+
+      <div className="toast-container">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast-item${toast.fading ? " toast-fade" : ""}`}>
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
