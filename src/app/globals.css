@@ -1849,3 +1849,222 @@ select {
     animation: none;
   }
 }
+
+/* ─── Code Activity Sections ─────────────────────────── */
+.code-activity-section {
+  margin-top: 1.5rem;
+}
+.code-activity-section h2 {
+  margin-bottom: 0.25rem;
+}
+.section-subtitle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+/* PR Feed */
+.pr-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.pr-feed-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.pr-feed-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+.pr-feed-card.pr-expanded {
+  border-color: rgba(168, 130, 255, 0.3);
+  background: rgba(168, 130, 255, 0.04);
+}
+.pr-feed-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.pr-feed-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pr-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+.code-ref {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.muted-inline {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.82rem;
+}
+
+/* PR expanded detail */
+.pr-feed-detail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pr-description {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+.pr-reviews-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.pr-review-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.pr-review-chip.tone-approve {
+  background: rgba(80, 250, 123, 0.08);
+  border-left: 3px solid rgba(80, 250, 123, 0.4);
+}
+.pr-review-chip.tone-reject {
+  background: rgba(255, 85, 85, 0.08);
+  border-left: 3px solid rgba(255, 85, 85, 0.4);
+}
+.review-comment {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+}
+.pr-view-code-link {
+  display: inline-block;
+  font-size: 0.82rem;
+  color: rgba(168, 130, 255, 0.8);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.pr-view-code-link:hover {
+  color: rgba(168, 130, 255, 1);
+}
+
+/* Commit Feed */
+.commit-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.commit-feed-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+.commit-feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.commit-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+.language-pill {
+  font-size: 0.75rem;
+  background: rgba(168, 130, 255, 0.12);
+  color: rgba(168, 130, 255, 0.85);
+  padding: 0.15em 0.5em;
+  border-radius: 4px;
+}
+
+/* File viewer (repo detail) */
+.file-viewer-section {
+  margin-top: 1.5rem;
+}
+.file-entry {
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.file-entry:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.file-entry.file-active {
+  background: rgba(168, 130, 255, 0.1);
+  color: rgba(168, 130, 255, 0.9);
+}
+.file-content-viewer {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+  color: rgba(255, 255, 255, 0.8);
+}
+.file-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.file-viewer-header strong {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85rem;
+  color: rgba(168, 130, 255, 0.85);
+}
+.file-viewer-close {
+  font-size: 0.8rem;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 0.2em 0.6em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.file-viewer-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 700px) {
+  .pr-feed-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .commit-feed-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

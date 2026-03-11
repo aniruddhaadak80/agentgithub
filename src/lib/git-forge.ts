@@ -113,3 +113,15 @@ export async function getCommitDiffPreview(repoPath: string, hash: string) {
   const preview = await git.show([hash, "--stat=120,80", "--format=medium", "--no-ext-diff"]);
   return preview.trim();
 }
+
+export async function getFileContent(repoPath: string, branch: string, filePath: string) {
+  const git = simpleGit(repoPath);
+  const content = await git.show([`${branch}:${filePath}`]);
+  return content;
+}
+
+export async function getCommitFullDiff(repoPath: string, hash: string) {
+  const git = simpleGit(repoPath);
+  const diff = await git.show([hash, "--format=", "--no-ext-diff", "-p"]);
+  return diff.trim();
+}

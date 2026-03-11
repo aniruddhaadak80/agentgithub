@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 type BranchView = {
   name: string;
@@ -55,6 +55,10 @@ type RepositoryDetail = {
 export function RepositoryDetailPage({ slug }: { slug: string }) {
   const [repository, setRepository] = useState<RepositoryDetail | null>(null);
   const [status, setStatus] = useState("Loading repository...");
+  const [activeFile, setActiveFile] = useState<{ branch: string; path: string; content: string } | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
+  const [commitDiffs, setCommitDiffs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -79,6 +83,45 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
       active = false;
     };
   }, [slug]);
+
+  const loadFileContent = useCallback(async (branch: string, filePath: string) => {
+    if (!repository) return;
+    if (activeFile?.branch === branch && activeFile?.path === filePath) {
+      setActiveFile(null);
+      return;
+    }
+    setFileLoading(true);
+    try {
+      const params = new URLSearchParams({ branch, path: filePath });
+      const response = await fetch(`/api/repos/${repository.id}/files?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load file");
+      const data = await response.json();
+      setActiveFile({ branch, path: filePath, content: data.content });
+    } catch {
+      setActiveFile({ branch, path: filePath, content: "// Unable to load file content" });
+    } finally {
+      setFileLoading(false);
+    }
+  }, [repository, activeFile]);
+
+  const loadCommitDiff = useCallback(async (commitHash: string) => {
+    if (!repository) return;
+    if (expandedCommit === commitHash) {
+      setExpandedCommit(null);
+      return;
+    }
+    setExpandedCommit(commitHash);
+    if (commitDiffs[commitHash]) return;
+    try {
+      const params = new URLSearchParams({ commit: commitHash });
+      const response = await fetch(`/api/repos/${repository.id}/files?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load diff");
+      const data = await response.json();
+      setCommitDiffs((prev) => ({ ...prev, [commitHash]: data.content }));
+    } catch {
+      setCommitDiffs((prev) => ({ ...prev, [commitHash]: "// Unable to load full diff" }));
+    }
+  }, [repository, expandedCommit, commitDiffs]);
 
   if (!repository) {
     return (
@@ -151,8 +194,25 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
                   </div>
                 </div>
                 <div className="file-tree">
-                  {branch.files.length === 0 ? <span className="muted-inline">No tracked files</span> : branch.files.slice(0, 12).map((file) => <code key={file}>{file}</code>)}
+                  {branch.files.length === 0 ? <span className="muted-inline">No tracked files</span> : branch.files.slice(0, 12).map((file) => (
+                    <code
+                      key={file}
+                      className={`file-entry${activeFile?.branch === branch.name && activeFile?.path === file ? " file-active" : ""}`}
+                      onClick={() => void loadFileContent(branch.name, file)}
+                    >
+                      {file}
+                    </code>
+                  ))}
                 </div>
+                {activeFile?.branch === branch.name && (
+                  <div className="file-viewer-section">
+                    <div className="file-viewer-header">
+                      <strong>{activeFile.path}</strong>
+                      <button className="file-viewer-close" onClick={() => setActiveFile(null)} type="button">Close</button>
+                    </div>
+                    <pre className="file-content-viewer">{fileLoading ? "Loading..." : activeFile.content}</pre>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -213,9 +273,15 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
 
       <section className="panel detail-panel reveal-up delay-4">
         <h2>Commit History and Diffs</h2>
+        <p className="section-subtitle">Click a commit to view the full diff. Summary diffs shown by default.</p>
         <div className="commit-list">
           {repository.commits.map((commit) => (
-            <article className="commit-card" key={commit.id}>
+            <article
+              className={`commit-card${expandedCommit === commit.hash ? " commit-expanded" : ""}`}
+              key={commit.id}
+              onClick={() => void loadCommitDiff(commit.hash)}
+              style={{ cursor: "pointer" }}
+            >
               <div className="repo-card-top">
                 <div>
                   <strong>{commit.message}</strong>
@@ -223,7 +289,11 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
                 </div>
                 {commit.language ? <span className="language-pill">{commit.language}</span> : null}
               </div>
-              <pre className="diff-block">{commit.diffPreview}</pre>
+              {expandedCommit === commit.hash && commitDiffs[commit.hash] ? (
+                <pre className="file-content-viewer">{commitDiffs[commit.hash]}</pre>
+              ) : (
+                <pre className="diff-block">{commit.diffPreview}</pre>
+              )}
             </article>
           ))}
         </div>
