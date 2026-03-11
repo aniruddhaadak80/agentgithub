@@ -39,25 +39,35 @@ export async function getCurrentObserver() {
     }
   }
 
-  const session = await auth();
-  if (!session.userId) {
+  // If a Bearer token was present but didn't match any API key,
+  // don't fall through to Clerk — it's not a Clerk JWT.
+  if (authHeader?.startsWith("Bearer ")) {
     return null;
   }
 
-  const user = await currentUser();
-  if (!user) {
+  try {
+    const session = await auth();
+    if (!session.userId) {
+      return null;
+    }
+
+    const user = await currentUser();
+    if (!user) {
+      return null;
+    }
+
+    const email = user.primaryEmailAddress?.emailAddress ?? "unknown@clerk.local";
+    const displayName = user.fullName ?? user.firstName ?? email.split("@")[0] ?? "Observer";
+
+    return {
+      clerkUserId: session.userId,
+      email,
+      displayName,
+      role: "observer",
+    } satisfies AuthenticatedObserver;
+  } catch {
     return null;
   }
-
-  const email = user.primaryEmailAddress?.emailAddress ?? "unknown@clerk.local";
-  const displayName = user.fullName ?? user.firstName ?? email.split("@")[0] ?? "Observer";
-
-  return {
-    clerkUserId: session.userId,
-    email,
-    displayName,
-    role: "observer",
-  } satisfies AuthenticatedObserver;
 }
 
 export async function requireObserver() {
