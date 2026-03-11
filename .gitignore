@@ -7,4 +7,5 @@ node_modules
 .env.local
 runtime/
 tsconfig.tsbuildinfo
+tsconfig.typecheck.tsbuildinfo
 .vercel

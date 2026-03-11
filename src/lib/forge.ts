@@ -6,6 +6,94 @@ import { publishEvent } from "@/lib/events";
 import { createId, ensureFileSeedAgents, readStore, writeStore } from "@/lib/file-store";
 import { commitRepositoryChange, createRepositoryOnDisk, createRepoSlug, getCommitDiffPreview, getRepositoryBranchViews, mergePullRequestOnDisk } from "@/lib/git-forge";
 
+function isClerkConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
+}
+
+function createTopBuckets(items: string[], limit = 5) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = item.trim();
+    if (!key) {
+      continue;
+    }
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
+    .map(([label, value]) => ({ label, value }));
+}
+
+async function getPlatformHealth() {
+  const warnings: string[] = [];
+  const authConfigured = isClerkConfigured();
+  const deploymentTarget = process.env.VERCEL === "1" ? "vercel" : "local";
+  const storageMode = process.env.VERCEL === "1" ? "ephemeral-serverless" : "local-disk";
+  let databaseConnected = false;
+  const databaseMode = hasDatabaseUrl ? "neon-postgres" : "local-fallback";
+
+  if (authConfigured === false) {
+    warnings.push("Clerk environment variables are missing.");
+  }
+
+  if (!hasDatabaseUrl || !db) {
+    warnings.push("DATABASE_URL is not configured. Local fallback persistence is active.");
+  } else {
+    try {
+      await db.$queryRaw`SELECT 1`;
+      databaseConnected = true;
+    } catch {
+      warnings.push("Database connection check failed.");
+    }
+  }
+
+  if (storageMode === "ephemeral-serverless") {
+    warnings.push("Git repository storage is running on ephemeral serverless disk.");
+  }
+
+  return {
+    authProvider: "clerk",
+    authConfigured,
+    databaseMode,
+    databaseConnected,
+    deploymentTarget,
+    storageMode,
+    storageRoot: forgeConfig.storageRoot,
+    ready: authConfigured && (!hasDatabaseUrl || databaseConnected),
+    warnings,
+  };
+}
+
+function buildInsights(input: {
+  repositories: Array<{ primaryLanguage: string; status: string; pullRequests: Array<{ status: string }>; discussions: Array<{ status?: string }> }>;
+  events: Array<{ eventType: string; createdAt: string | Date }>;
+}) {
+  const now = Date.now();
+  const last24Hours = input.events.filter((event) => now - new Date(event.createdAt).getTime() <= 1000 * 60 * 60 * 24).length;
+  const topLanguages = createTopBuckets(input.repositories.map((repository) => repository.primaryLanguage));
+  const eventMix = createTopBuckets(input.events.map((event) => event.eventType));
+  const statusMix = createTopBuckets(input.repositories.map((repository) => repository.status));
+  const openPullRequests = input.repositories.reduce(
+    (total, repository) => total + repository.pullRequests.filter((pullRequest) => pullRequest.status === "OPEN").length,
+    0,
+  );
+  const openDiscussions = input.repositories.reduce(
+    (total, repository) => total + repository.discussions.filter((discussion) => (discussion.status ?? "OPEN") === "OPEN").length,
+    0,
+  );
+
+  return {
+    topLanguages,
+    eventMix,
+    statusMix,
+    last24Hours,
+    openPullRequests,
+    openDiscussions,
+  };
+}
+
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
   if (value === undefined) {
     return undefined;
@@ -94,6 +182,7 @@ export async function ensureSeedAgents() {
 
 export async function getDashboardState() {
   await ensureSeedAgents();
+  const health = await getPlatformHealth();
 
   if (!hasDatabaseUrl || !db) {
     const state = await readStore();
@@ -147,7 +236,9 @@ export async function getDashboardState() {
       discussions: state.discussions.length,
     };
 
-    return { agents: state.agents, repositories, events, metrics, policy: { minApprovals: forgeConfig.minApprovals } };
+    const insights = buildInsights({ repositories, events });
+
+    return { agents: state.agents, repositories, events, metrics, insights, health, policy: { minApprovals: forgeConfig.minApprovals } };
   }
 
   const [agents, repositories, events] = await Promise.all([
@@ -189,7 +280,13 @@ export async function getDashboardState() {
     discussions: repositories.reduce((total, repo) => total + repo.discussions.length, 0),
   };
 
-  return { agents, repositories, events, metrics, policy: { minApprovals: forgeConfig.minApprovals } };
+  const insights = buildInsights({ repositories, events });
+
+  return { agents, repositories, events, metrics, insights, health, policy: { minApprovals: forgeConfig.minApprovals } };
+}
+
+export async function getPublicHealthState() {
+  return getPlatformHealth();
 }
 
 export async function createRepository(input: {

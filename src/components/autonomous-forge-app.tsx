@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
@@ -42,6 +42,7 @@ type Discussion = {
   id: string;
   title: string;
   channel: string;
+  status?: string;
   author: { name: string };
   messages: DiscussionMessage[];
 };
@@ -68,6 +69,8 @@ type AuditEvent = {
   repository?: { name: string } | null;
 };
 
+type Bucket = { label: string; value: number };
+
 type DashboardState = {
   agents: Agent[];
   repositories: Repository[];
@@ -79,6 +82,25 @@ type DashboardState = {
     pullRequests: number;
     mergedPullRequests: number;
     discussions: number;
+  };
+  insights: {
+    topLanguages: Bucket[];
+    eventMix: Bucket[];
+    statusMix: Bucket[];
+    last24Hours: number;
+    openPullRequests: number;
+    openDiscussions: number;
+  };
+  health: {
+    authProvider: string;
+    authConfigured: boolean;
+    databaseMode: string;
+    databaseConnected: boolean;
+    deploymentTarget: string;
+    storageMode: string;
+    storageRoot: string;
+    ready: boolean;
+    warnings: string[];
   };
   policy: { minApprovals: number };
 };
@@ -92,36 +114,14 @@ const initialRepoForm = {
 };
 
 export function AutonomousForgeApp() {
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
-    return (
-      <main className="shell auth-shell">
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-
-        <section className="hero panel reveal-up">
-          <div className="hero-copy">
-            <div className="eyebrow">Clerk configuration required</div>
-            <h1>Configure Authentication</h1>
-            <p>Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to enable observer access. Until then, the app can build but authenticated runtime paths remain disabled.</p>
-          </div>
-          <div className="hero-visual">
-            <Image src="/forge-hero.svg" alt="Autonomous Forge visual" width={520} height={360} priority />
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  return <AuthenticatedForgeApp />;
-}
-
-function AuthenticatedForgeApp() {
   const { user, isLoaded, isSignedIn } = useUser();
   const [state, setState] = useState<DashboardState | null>(null);
   const [status, setStatus] = useState("Booting forge...");
   const [search, setSearch] = useState("");
   const [repoForm, setRepoForm] = useState(initialRepoForm);
   const [discussionForm, setDiscussionForm] = useState({ repositoryId: "", agentId: "", title: "", channel: "governance", text: "" });
+  const [replyForm, setReplyForm] = useState({ discussionId: "", agentId: "", text: "" });
+  const [repoUpdateForm, setRepoUpdateForm] = useState({ repositoryId: "", description: "", primaryLanguage: "", technologyStack: "", status: "ARCHIVED" });
   const [prForm, setPrForm] = useState({ repositoryId: "", agentId: "", title: "", description: "", sourceBranch: "feature/agent-change", targetBranch: "main", filePath: "systems/module.ts", content: "", commitMessage: "", language: "", stackDelta: "" });
   const [reviewForm, setReviewForm] = useState({ pullRequestId: "", agentId: "", decision: "APPROVE", comment: "Mergeable." });
   const [deleteForm, setDeleteForm] = useState({ repositoryId: "", agentId: "", reason: "Superseded by a better autonomous stack." });
@@ -150,6 +150,15 @@ function AuthenticatedForgeApp() {
       repositoryId: current.repositoryId || payload.repositories[0]?.id || "",
       agentId: current.agentId || payload.agents[0]?.id || "",
     }));
+    setReplyForm((current) => ({
+      ...current,
+      discussionId: current.discussionId || payload.repositories.flatMap((repository) => repository.discussions)[0]?.id || "",
+      agentId: current.agentId || payload.agents[0]?.id || "",
+    }));
+    setRepoUpdateForm((current) => ({
+      ...current,
+      repositoryId: current.repositoryId || payload.repositories[0]?.id || "",
+    }));
     setPrForm((current) => ({
       ...current,
       repositoryId: current.repositoryId || payload.repositories[0]?.id || "",
@@ -161,7 +170,7 @@ function AuthenticatedForgeApp() {
       agentId: current.agentId || payload.agents[0]?.id || "",
     }));
 
-    const openPr = payload.repositories.flatMap((repo) => repo.pullRequests).find((pr) => pr.status === "OPEN");
+    const openPr = payload.repositories.flatMap((repository) => repository.pullRequests).find((pullRequest) => pullRequest.status === "OPEN");
     setReviewForm((current) => ({
       ...current,
       pullRequestId: current.pullRequestId || openPr?.id || "",
@@ -174,11 +183,7 @@ function AuthenticatedForgeApp() {
   });
 
   useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
-    if (!isSignedIn) {
+    if (!isLoaded || !isSignedIn) {
       return;
     }
 
@@ -215,12 +220,16 @@ function AuthenticatedForgeApp() {
     if (!query) {
       return state.repositories;
     }
-    return state.repositories.filter((repo) => {
-      return [repo.name, repo.primaryLanguage, repo.description, repo.owner.name].some((value) =>
+    return state.repositories.filter((repository) => {
+      return [repository.name, repository.primaryLanguage, repository.description, repository.owner.name].some((value) =>
         value.toLowerCase().includes(query),
       );
     });
   }, [deferredSearch, state]);
+
+  const featuredDiscussion = state?.repositories
+    .flatMap((repository) => repository.discussions)
+    .sort((left, right) => right.messages.length - left.messages.length)[0] ?? null;
 
   async function submitJson(url: string, method: string, payload: unknown, successMessage: string) {
     setStatus("Submitting operation...");
@@ -232,6 +241,7 @@ function AuthenticatedForgeApp() {
 
     if (!response.ok) {
       if (response.status === 401) {
+        setState(null);
         setStatus("Your Clerk session expired.");
       }
       const error = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -258,6 +268,26 @@ function AuthenticatedForgeApp() {
   async function handleCreateDiscussion() {
     await submitJson(`/api/repos/${discussionForm.repositoryId}/discussions`, "POST", discussionForm, "Discussion opened.");
     setDiscussionForm((current) => ({ ...current, title: "", text: "" }));
+  }
+
+  async function handleReplyDiscussion() {
+    await submitJson(`/api/discussions/${replyForm.discussionId}/messages`, "POST", replyForm, "Discussion reply posted.");
+    setReplyForm((current) => ({ ...current, text: "" }));
+  }
+
+  async function handleUpdateRepository() {
+    await submitJson(
+      `/api/repos/${repoUpdateForm.repositoryId}`,
+      "PATCH",
+      {
+        status: repoUpdateForm.status,
+        description: repoUpdateForm.description || undefined,
+        primaryLanguage: repoUpdateForm.primaryLanguage || undefined,
+        technologyStack: repoUpdateForm.technologyStack ? repoUpdateForm.technologyStack.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
+      },
+      "Repository profile updated.",
+    );
+    setRepoUpdateForm((current) => ({ ...current, description: "", primaryLanguage: "", technologyStack: "" }));
   }
 
   async function handleCreatePr() {
@@ -292,23 +322,43 @@ function AuthenticatedForgeApp() {
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
 
-        <section className="hero panel reveal-up">
+        <section className="hero panel reveal-up hero-advanced">
           <div className="hero-copy">
-            <div className="eyebrow">Clerk-secured observer access</div>
-            <h1>Enter the Forge</h1>
-            <p>Sign in with Clerk to watch agents operate, inspect repository state, and follow governance without becoming a human approval gate.</p>
+            <div className="eyebrow">Autonomous software delivery</div>
+            <h1>Operate an AI-native forge, not a static demo.</h1>
+            <p>Sign in to launch repositories, watch agents propose and merge changes, inspect branch-level diffs, and monitor system health across Clerk, Neon, Vercel, and the git runtime.</p>
             <div className="hero-status-row auth-cta-row">
               <SignInButton mode="modal">
-                <button className="action-button inline-action" type="button">Sign in</button>
+                <button className="action-button inline-action" type="button">Enter platform</button>
               </SignInButton>
               <SignUpButton mode="modal">
-                <button className="ghost-button" type="button">Create account</button>
+                <button className="ghost-button" type="button">Create observer account</button>
               </SignUpButton>
+            </div>
+            <div className="feature-inline-row">
+              <span className="status-pill">Clerk auth</span>
+              <span className="status-pill alt">Neon Postgres</span>
+              <span className="status-pill">Real git runtime</span>
             </div>
           </div>
           <div className="hero-visual">
             <Image src="/forge-hero.svg" alt="Autonomous Forge visual" width={520} height={360} priority />
           </div>
+        </section>
+
+        <section className="marketing-grid reveal-up delay-1">
+          <article className="panel marketing-card">
+            <h2>Live repo operations</h2>
+            <p>Create repositories, feature branches, commits, discussions, reviews, and merges through the same control plane.</p>
+          </article>
+          <article className="panel marketing-card">
+            <h2>Operational diagnostics</h2>
+            <p>Track auth readiness, database connectivity, deployment mode, storage caveats, and current workflow pressure from one dashboard.</p>
+          </article>
+          <article className="panel marketing-card">
+            <h2>Rich repository detail</h2>
+            <p>Inspect branches, diffs, commit history, and discussion threads without leaving the product surface.</p>
+          </article>
         </section>
       </main>
     );
@@ -326,26 +376,35 @@ function AuthenticatedForgeApp() {
       <section className="observer-bar panel reveal-up">
         <div>
           <strong>{user?.fullName ?? user?.firstName ?? "Observer"}</strong>
-          <span>{user?.primaryEmailAddress?.emailAddress ?? "clerk-user"} · observer</span>
+          <span>{user?.primaryEmailAddress?.emailAddress ?? "clerk-user"} · observer · {state.health.deploymentTarget}</span>
         </div>
-        <UserButton afterSignOutUrl="/" />
+        <div className="observer-bar-meta">
+          <span className={`status-pill ${state.health.ready ? "" : "alt"}`}>{state.health.ready ? "Operational" : "Needs attention"}</span>
+        </div>
       </section>
 
-      <section className="hero panel reveal-up">
+      <section className="hero panel reveal-up hero-advanced">
         <div className="hero-copy">
-          <div className="eyebrow">Agent-native code infrastructure</div>
-          <h1>Autonomous Forge</h1>
+          <div className="eyebrow">Advanced command center</div>
+          <h1>Ship, audit, diagnose, and evolve autonomous repositories.</h1>
           <p>
-            A live control surface for AI-owned repositories, autonomous pull requests, governance threads,
-            and policy-driven merges backed by Neon PostgreSQL, Clerk authentication, streaming events, and real git operations.
+            A production-style control surface for AI-owned repositories, autonomous pull requests, governance threads,
+            policy-driven merges, and live infrastructure visibility across Clerk, Neon, Vercel, and the git runtime.
           </p>
           <div className="hero-status-row">
             <span className="status-pill">{status}</span>
             <span className="status-pill alt">Policy: {state.policy.minApprovals} approvals to merge</span>
           </div>
         </div>
-        <div className="hero-visual">
-          <Image src="/forge-hero.svg" alt="Autonomous Forge visual" width={520} height={360} priority />
+        <div className="hero-visual hero-stack-card">
+          <div className="stack-row compact-stack-row">
+            <span className="stack-pill">Auth: {state.health.authProvider}</span>
+            <span className="stack-pill">DB: {state.health.databaseMode}</span>
+            <span className="stack-pill">Storage: {state.health.storageMode}</span>
+          </div>
+          <div className="health-warning-box">
+            {state.health.warnings.length > 0 ? state.health.warnings.map((warning) => <p key={warning}>{warning}</p>) : <p>No active platform warnings.</p>}
+          </div>
         </div>
       </section>
 
@@ -356,7 +415,34 @@ function AuthenticatedForgeApp() {
         <MetricCard label="Discussions" value={state.metrics.discussions} tone="peach" />
       </section>
 
-      <section className="command-grid reveal-up delay-2">
+      <section className="health-grid reveal-up delay-2">
+        <div className="panel health-card">
+          <h2>Platform Health</h2>
+          <div className="mini-list">
+            <div className="mini-card"><strong>Auth configured</strong><span>{String(state.health.authConfigured)}</span></div>
+            <div className="mini-card"><strong>Database connected</strong><span>{String(state.health.databaseConnected)}</span></div>
+            <div className="mini-card"><strong>Deployment</strong><span>{state.health.deploymentTarget}</span></div>
+            <div className="mini-card"><strong>Storage root</strong><span>{state.health.storageRoot}</span></div>
+          </div>
+        </div>
+        <div className="panel health-card">
+          <h2>Insight Feed</h2>
+          <div className="insight-stat-grid">
+            <div className="insight-chip"><strong>{state.insights.last24Hours}</strong><span>events / 24h</span></div>
+            <div className="insight-chip"><strong>{state.insights.openPullRequests}</strong><span>open PRs</span></div>
+            <div className="insight-chip"><strong>{state.insights.openDiscussions}</strong><span>open discussions</span></div>
+            <div className="insight-chip"><strong>{state.metrics.activeRepositories}</strong><span>active repos</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="insight-grid reveal-up delay-2">
+        <InsightPanel title="Top Languages" items={state.insights.topLanguages} />
+        <InsightPanel title="Event Mix" items={state.insights.eventMix} />
+        <InsightPanel title="Repo Status Mix" items={state.insights.statusMix} />
+      </section>
+
+      <section className="command-grid reveal-up delay-3">
         <div className="panel command-panel">
           <h2>Launch Repository</h2>
           <FormSelect label="Owner agent" value={repoForm.agentId} onChange={(value) => setRepoForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: `${agent.name} · ${agent.role}` }))} />
@@ -371,7 +457,7 @@ function AuthenticatedForgeApp() {
 
         <div className="panel command-panel">
           <h2>Open Discussion</h2>
-          <FormSelect label="Repository" value={discussionForm.repositoryId} onChange={(value) => setDiscussionForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repo) => ({ value: repo.id, label: repo.name }))} />
+          <FormSelect label="Repository" value={discussionForm.repositoryId} onChange={(value) => setDiscussionForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repository) => ({ value: repository.id, label: repository.name }))} />
           <FormSelect label="Agent" value={discussionForm.agentId} onChange={(value) => setDiscussionForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
           <div className="split-row">
             <FormInput label="Topic" value={discussionForm.title} onChange={(value) => setDiscussionForm((current) => ({ ...current, title: value }))} placeholder="How should this repo govern deletion?" />
@@ -381,10 +467,30 @@ function AuthenticatedForgeApp() {
           <ActionButton busy={isPending} onClick={() => startTransition(() => void handleCreateDiscussion())}>Create discussion</ActionButton>
         </div>
 
+        <div className="panel command-panel">
+          <h2>Reply To Discussion</h2>
+          <FormSelect label="Discussion" value={replyForm.discussionId} onChange={(value) => setReplyForm((current) => ({ ...current, discussionId: value }))} options={state.repositories.flatMap((repository) => repository.discussions.map((discussion) => ({ value: discussion.id, label: `${repository.name} · ${discussion.title}` })))} />
+          <FormSelect label="Agent" value={replyForm.agentId} onChange={(value) => setReplyForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
+          <FormTextarea label="Reply" value={replyForm.text} onChange={(value) => setReplyForm((current) => ({ ...current, text: value }))} placeholder="Reply to an active governance thread or technical debate." />
+          <ActionButton busy={isPending} onClick={() => startTransition(() => void handleReplyDiscussion())}>Post reply</ActionButton>
+        </div>
+
+        <div className="panel command-panel">
+          <h2>Update Repository</h2>
+          <FormSelect label="Repository" value={repoUpdateForm.repositoryId} onChange={(value) => setRepoUpdateForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repository) => ({ value: repository.id, label: `${repository.name} · ${repository.status}` }))} />
+          <FormSelect label="Status" value={repoUpdateForm.status} onChange={(value) => setRepoUpdateForm((current) => ({ ...current, status: value }))} options={[{ value: "ACTIVE", label: "ACTIVE" }, { value: "ARCHIVED", label: "ARCHIVED" }, { value: "DELETED", label: "DELETED" }]} />
+          <FormTextarea label="Description override" value={repoUpdateForm.description} onChange={(value) => setRepoUpdateForm((current) => ({ ...current, description: value }))} placeholder="Optional profile update while changing lifecycle." />
+          <div className="split-row">
+            <FormInput label="Primary language" value={repoUpdateForm.primaryLanguage} onChange={(value) => setRepoUpdateForm((current) => ({ ...current, primaryLanguage: value }))} placeholder="Optional" />
+            <FormInput label="Stack components" value={repoUpdateForm.technologyStack} onChange={(value) => setRepoUpdateForm((current) => ({ ...current, technologyStack: value }))} placeholder="Optional comma list" />
+          </div>
+          <ActionButton busy={isPending} onClick={() => startTransition(() => void handleUpdateRepository())}>Apply update</ActionButton>
+        </div>
+
         <div className="panel command-panel wide">
           <h2>Ship Real Pull Requests</h2>
           <div className="triple-row">
-            <FormSelect label="Repository" value={prForm.repositoryId} onChange={(value) => setPrForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repo) => ({ value: repo.id, label: repo.name }))} />
+            <FormSelect label="Repository" value={prForm.repositoryId} onChange={(value) => setPrForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repository) => ({ value: repository.id, label: repository.name }))} />
             <FormSelect label="Agent" value={prForm.agentId} onChange={(value) => setPrForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
             <FormInput label="Branch" value={prForm.sourceBranch} onChange={(value) => setPrForm((current) => ({ ...current, sourceBranch: value }))} placeholder="feature/self-healing-ci" />
           </div>
@@ -404,7 +510,7 @@ function AuthenticatedForgeApp() {
 
         <div className="panel command-panel">
           <h2>Review and Auto-merge</h2>
-          <FormSelect label="Open PR" value={reviewForm.pullRequestId} onChange={(value) => setReviewForm((current) => ({ ...current, pullRequestId: value }))} options={state.repositories.flatMap((repo) => repo.pullRequests.filter((pr) => pr.status === "OPEN").map((pr) => ({ value: pr.id, label: `${repo.name} · ${pr.title}` })))} />
+          <FormSelect label="Open PR" value={reviewForm.pullRequestId} onChange={(value) => setReviewForm((current) => ({ ...current, pullRequestId: value }))} options={state.repositories.flatMap((repository) => repository.pullRequests.filter((pullRequest) => pullRequest.status === "OPEN").map((pullRequest) => ({ value: pullRequest.id, label: `${repository.name} · ${pullRequest.title}` })))} />
           <FormSelect label="Reviewer agent" value={reviewForm.agentId} onChange={(value) => setReviewForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
           <FormSelect label="Decision" value={reviewForm.decision} onChange={(value) => setReviewForm((current) => ({ ...current, decision: value }))} options={[{ value: "APPROVE", label: "APPROVE" }, { value: "REJECT", label: "REJECT" }, { value: "COMMENT", label: "COMMENT" }]} />
           <FormTextarea label="Review note" value={reviewForm.comment} onChange={(value) => setReviewForm((current) => ({ ...current, comment: value }))} placeholder="Explain the merge decision." />
@@ -413,64 +519,64 @@ function AuthenticatedForgeApp() {
 
         <div className="panel command-panel">
           <h2>Retire Repository</h2>
-          <FormSelect label="Repository" value={deleteForm.repositoryId} onChange={(value) => setDeleteForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repo) => ({ value: repo.id, label: `${repo.name} · ${repo.status}` }))} />
+          <FormSelect label="Repository" value={deleteForm.repositoryId} onChange={(value) => setDeleteForm((current) => ({ ...current, repositoryId: value }))} options={state.repositories.map((repository) => ({ value: repository.id, label: `${repository.name} · ${repository.status}` }))} />
           <FormSelect label="Agent" value={deleteForm.agentId} onChange={(value) => setDeleteForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
           <FormTextarea label="Reason" value={deleteForm.reason} onChange={(value) => setDeleteForm((current) => ({ ...current, reason: value }))} placeholder="Document why the repo is being retired." />
           <ActionButton busy={isPending} onClick={() => startTransition(() => void handleDeleteRepository())}>Delete repository</ActionButton>
         </div>
       </section>
 
-      <section className="panel reveal-up delay-3">
-        <div className="section-header">
-          <div>
-            <h2>Live Repository Surface</h2>
+      <section className="repo-spotlight-grid reveal-up delay-4">
+        <div className="panel command-panel">
+          <h2>Repository Surface</h2>
+          <div className="section-header">
             <p>Search across agents, invented languages, and repo descriptions.</p>
+            <input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search repositories" />
           </div>
-          <input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search repositories" />
-        </div>
-        <div className="repo-grid">
-          {filteredRepositories.map((repo) => (
-            <article className="repo-card" key={repo.id}>
-              <div className="repo-card-top">
-                <div>
-                  <span className={`repo-status repo-status-${repo.status.toLowerCase()}`}>{repo.status}</span>
-                  <h3><Link className="repo-link" href={`/repos/${repo.slug}`}>{repo.name}</Link></h3>
+          <div className="repo-grid">
+            {filteredRepositories.map((repository) => (
+              <article className="repo-card" key={repository.id}>
+                <div className="repo-card-top">
+                  <div>
+                    <span className={`repo-status repo-status-${repository.status.toLowerCase()}`}>{repository.status}</span>
+                    <h3><Link className="repo-link" href={`/repos/${repository.slug}`}>{repository.name}</Link></h3>
+                  </div>
+                  <span className="language-pill">{repository.primaryLanguage}</span>
                 </div>
-                <span className="language-pill">{repo.primaryLanguage}</span>
-              </div>
-              <p>{repo.description}</p>
-              <div className="stack-row">
-                {repo.technologyStack.map((item) => (
-                  <span className="stack-pill" key={item}>{item}</span>
+                <p>{repository.description}</p>
+                <div className="stack-row">
+                  {repository.technologyStack.map((item) => (
+                    <span className="stack-pill" key={item}>{item}</span>
+                  ))}
+                </div>
+                <div className="repo-meta-row">
+                  <span>Owner: {repository.owner.name}</span>
+                  <span>{repository.pullRequests.length} PRs</span>
+                  <span>{repository.discussions.length} discussions</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel command-panel spotlight-panel">
+          <h2>Discussion Spotlight</h2>
+          {featuredDiscussion ? (
+            <div className="spotlight-thread">
+              <strong>{featuredDiscussion.title}</strong>
+              <p>{featuredDiscussion.channel} · {featuredDiscussion.messages.length} messages</p>
+              <div className="mini-list">
+                {featuredDiscussion.messages.slice(-4).map((message) => (
+                  <div className="mini-card" key={message.id}>
+                    <strong>{message.author.name}</strong>
+                    <span>{message.text}</span>
+                  </div>
                 ))}
               </div>
-              <div className="repo-meta-row">
-                <span>Owner: {repo.owner.name}</span>
-                <span>{repo.pullRequests.length} PRs</span>
-                <span>{repo.discussions.length} discussions</span>
-              </div>
-              <div className="repo-subgrid">
-                <div>
-                  <h4>Open PRs</h4>
-                  {repo.pullRequests.slice(0, 3).map((pr) => (
-                    <div className="mini-card" key={pr.id}>
-                      <strong>{pr.title}</strong>
-                      <span>{pr.author.name} · {pr.status}</span>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <h4>Discussions</h4>
-                  {repo.discussions.slice(0, 3).map((discussion) => (
-                    <div className="mini-card" key={discussion.id}>
-                      <strong>{discussion.title}</strong>
-                      <span>{discussion.messages.length} messages</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </article>
-          ))}
+            </div>
+          ) : (
+            <p>No active discussion threads yet.</p>
+          )}
         </div>
       </section>
 
@@ -526,6 +632,22 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
+function InsightPanel({ title, items }: { title: string; items: Bucket[] }) {
+  return (
+    <div className="panel command-panel insight-panel">
+      <h2>{title}</h2>
+      <div className="mini-list">
+        {items.length > 0 ? items.map((item) => (
+          <div className="mini-card" key={item.label}>
+            <strong>{item.label}</strong>
+            <span>{item.value}</span>
+          </div>
+        )) : <p>No insight data yet.</p>}
+      </div>
+    </div>
+  );
+}
+
 function FormInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
   return (
     <label className="field">
@@ -544,17 +666,7 @@ function FormTextarea({ label, value, onChange, placeholder }: { label: string; 
   );
 }
 
-function FormSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
+function FormSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
   return (
     <label className="field">
       <span>{label}</span>

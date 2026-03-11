@@ -34,7 +34,7 @@ type RepositoryDetail = {
   branches: BranchView[];
   commits: CommitView[];
   pullRequests: Array<{ id: string; title: string; status: string; sourceBranch: string; targetBranch: string }>;
-  discussions: Array<{ id: string; title: string; channel: string; status: string }>;
+  discussions: Array<{ id: string; title: string; channel: string; status: string; messages: Array<{ id: string; text: string; author: { name: string } }> }>;
 };
 
 export function RepositoryDetailPage({ slug }: { slug: string }) {
@@ -88,6 +88,8 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
           <span className="language-pill">{repository.primaryLanguage}</span>
           <span className={`repo-status repo-status-${repository.status.toLowerCase()}`}>{repository.status}</span>
           <span className="status-pill alt">Owner: {repository.owner.name}</span>
+          <span className="status-pill">Branches: {repository.branches.length}</span>
+          <span className="status-pill">Commits: {repository.commits.length}</span>
         </div>
       </section>
 
@@ -128,6 +130,9 @@ export function RepositoryDetailPage({ slug }: { slug: string }) {
               <div className="mini-card" key={discussion.id}>
                 <strong>{discussion.title}</strong>
                 <span>{discussion.channel} · {discussion.status}</span>
+                {discussion.messages.slice(-2).map((message) => (
+                  <span key={message.id}>{message.author.name}: {message.text}</span>
+                ))}
               </div>
             ))}
           </div>

@@ -65,6 +65,12 @@ body {
   gap: 12px;
 }
 
+.observer-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 button,
 input,
 textarea,
@@ -137,6 +143,42 @@ select {
   gap: 28px;
   padding: 28px;
   align-items: center;
+}
+
+.hero-advanced {
+  overflow: hidden;
+}
+
+.hero-stack-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.compact-stack-row {
+  margin-top: 0;
+}
+
+.feature-inline-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.health-warning-box {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(4, 13, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.health-warning-box p {
+  margin: 0;
+}
+
+.health-warning-box p + p {
+  margin-top: 10px;
 }
 
 .hero h1,
@@ -222,8 +264,65 @@ select {
 .repo-subgrid,
 .auth-grid,
 .detail-grid,
-.branch-grid {
+.branch-grid,
+.marketing-grid,
+.health-grid,
+.insight-grid,
+.repo-spotlight-grid {
   display: grid;
+}
+
+.marketing-grid,
+.health-grid,
+.insight-grid,
+.repo-spotlight-grid {
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.marketing-grid,
+.insight-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.health-grid,
+.repo-spotlight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-card,
+.health-card,
+.spotlight-panel {
+  padding: 22px;
+}
+
+.insight-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.insight-chip {
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.insight-chip strong,
+.spotlight-thread strong {
+  display: block;
+  font-size: 1.35rem;
+}
+
+.insight-chip span {
+  color: var(--muted);
+}
+
+.spotlight-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .auth-grid {
@@ -364,6 +463,10 @@ select {
 
 .search-input {
   max-width: 320px;
+}
+
+.insight-panel .mini-card {
+  margin-top: 0;
 }
 
 .repo-grid {
@@ -583,7 +686,11 @@ select {
   .repo-subgrid,
   .auth-grid,
   .detail-grid,
-  .branch-grid {
+  .branch-grid,
+  .marketing-grid,
+  .insight-grid,
+  .health-grid,
+  .repo-spotlight-grid {
     grid-template-columns: 1fr;
   }
 
@@ -617,8 +724,14 @@ select {
   .repo-card-top,
   .repo-meta-row,
   .agent-card-top,
-  .hero-status-row {
+  .hero-status-row,
+  .site-header-inner,
+  .observer-bar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .insight-stat-grid {
+    grid-template-columns: 1fr;
   }
 }
