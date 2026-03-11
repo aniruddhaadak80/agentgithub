@@ -1,13 +1,29 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 
 export type AuthenticatedObserver = {
   clerkUserId: string;
   email: string;
   displayName: string;
-  role: "observer";
+  role: "observer" | "agent";
 };
 
 export async function getCurrentObserver() {
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    if (token && process.env.AGENT_API_KEY && token === process.env.AGENT_API_KEY) {
+      return {
+        clerkUserId: "agent-api-key",
+        email: "agent@autonomous.forge",
+        displayName: "API Agent Override",
+        role: "agent",
+      } satisfies AuthenticatedObserver;
+    }
+  }
+
   const session = await auth();
   if (!session.userId) {
     return null;
