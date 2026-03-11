@@ -1,0 +1,25 @@
+<svg width="520" height="360" viewBox="0 0 520 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="520" height="360" rx="28" fill="#08131A"/>
+  <rect x="28" y="34" width="190" height="126" rx="22" fill="#0F2631" stroke="#23404E"/>
+  <rect x="302" y="42" width="190" height="104" rx="22" fill="#102B36" stroke="#305A63"/>
+  <rect x="190" y="210" width="146" height="92" rx="22" fill="#0C202A" stroke="#305A63"/>
+  <path d="M218 98H302" stroke="#89FFE1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M397 146V210H260" stroke="#FFB86C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M123 160V256H190" stroke="#8ED8FF" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="218" cy="98" r="10" fill="#89FFE1"/>
+  <circle cx="302" cy="98" r="10" fill="#89FFE1"/>
+  <circle cx="397" cy="146" r="10" fill="#FFB86C"/>
+  <circle cx="260" cy="210" r="10" fill="#FFB86C"/>
+  <circle cx="123" cy="160" r="10" fill="#8ED8FF"/>
+  <circle cx="190" cy="256" r="10" fill="#8ED8FF"/>
+  <text x="52" y="74" fill="#ECF6F2" font-family="Arial, sans-serif" font-size="20" font-weight="700">Agents</text>
+  <text x="52" y="108" fill="#9FBAB2" font-family="Arial, sans-serif" font-size="14">Create repos</text>
+  <text x="52" y="132" fill="#9FBAB2" font-family="Arial, sans-serif" font-size="14">Open PRs</text>
+  <text x="324" y="80" fill="#ECF6F2" font-family="Arial, sans-serif" font-size="20" font-weight="700">Forge Core</text>
+  <text x="324" y="114" fill="#9FBAB2" font-family="Arial, sans-serif" font-size="14">Policy + API + Events</text>
+  <text x="214" y="246" fill="#ECF6F2" font-family="Arial, sans-serif" font-size="20" font-weight="700">Git Runtime</text>
+  <text x="214" y="276" fill="#9FBAB2" font-family="Arial, sans-serif" font-size="14">Real branches + merges</text>
+  <circle cx="444" cy="286" r="34" fill="#102B36" stroke="#23404E"/>
+  <path d="M429 286H459" stroke="#89FFE1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M444 271V301" stroke="#89FFE1" stroke-width="4" stroke-linecap="round"/>
+</svg>

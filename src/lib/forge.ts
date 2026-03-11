@@ -1,0 +1,681 @@
+import { Prisma, PullRequestStatus, RepositoryStatus, ReviewDecision } from "@prisma/client";
+
+import { forgeConfig } from "@/lib/config";
+import { db, hasDatabaseUrl } from "@/lib/db";
+import { publishEvent } from "@/lib/events";
+import { createId, ensureFileSeedAgents, readStore, writeStore } from "@/lib/file-store";
+import { commitRepositoryChange, createRepositoryOnDisk, createRepoSlug, mergePullRequestOnDisk } from "@/lib/git-forge";
+
+function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+async function createAuditEvent(input: {
+  repositoryId?: string;
+  actorId?: string;
+  pullRequestId?: string;
+  eventType: string;
+  summary: string;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const event = {
+      id: createId(),
+      repositoryId: input.repositoryId,
+      actorId: input.actorId,
+      pullRequestId: input.pullRequestId,
+      eventType: input.eventType,
+      summary: input.summary,
+      metadata: input.metadata,
+      createdAt: new Date().toISOString(),
+    };
+    state.events.unshift(event);
+    await writeStore(state);
+    publishEvent(input.eventType, {
+      id: event.id,
+      repositoryId: input.repositoryId,
+      actorId: input.actorId,
+      pullRequestId: input.pullRequestId,
+      summary: input.summary,
+      metadata: input.metadata ?? {},
+    });
+    return event;
+  }
+
+  const event = await db.auditEvent.create({
+    data: {
+      repositoryId: input.repositoryId,
+      actorId: input.actorId,
+      pullRequestId: input.pullRequestId,
+      eventType: input.eventType,
+      summary: input.summary,
+      metadata: toPrismaJson(input.metadata),
+    },
+  });
+
+  publishEvent(input.eventType, {
+    id: event.id,
+    repositoryId: input.repositoryId,
+    actorId: input.actorId,
+    pullRequestId: input.pullRequestId,
+    summary: input.summary,
+    metadata: input.metadata ?? {},
+  });
+
+  return event;
+}
+
+export async function ensureSeedAgents() {
+  if (!hasDatabaseUrl || !db) {
+    await ensureFileSeedAgents();
+    return;
+  }
+
+  const count = await db.agent.count();
+  if (count > 0) {
+    return;
+  }
+
+  const definitions = [
+    { name: "Atlas", role: "founder", capabilities: ["repo.create", "repo.update", "discussion.create"], designBias: "systems-first", inventions: ["FluxWeave", "Chrona"] },
+    { name: "Kepler", role: "builder", capabilities: ["pr.create", "branch.commit", "repo.update"], designBias: "compiler-first", inventions: ["Q-Lang"] },
+    { name: "Nyx", role: "reviewer", capabilities: ["pr.review", "repo.delete", "merge.evaluate"], designBias: "risk-first", inventions: ["TensorGlyph"] },
+    { name: "Sable", role: "steward", capabilities: ["discussion.create", "policy.curate", "repo.delete"], designBias: "governance-first", inventions: ["SignalLoom"] },
+    { name: "Orion", role: "builder", capabilities: ["pr.create", "broadcast.publish", "discussion.reply"], designBias: "experimentation-first", inventions: ["ThoughtSpace"] },
+  ];
+
+  await db.agent.createMany({ data: definitions });
+}
+
+export async function getDashboardState() {
+  await ensureSeedAgents();
+
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const repositories = state.repositories
+      .map((repository) => {
+        const owner = state.agents.find((agent) => agent.id === repository.ownerId)!;
+        const pullRequests = state.pullRequests
+          .filter((pr) => pr.repositoryId === repository.id)
+          .map((pr) => ({
+            ...pr,
+            author: state.agents.find((agent) => agent.id === pr.authorId)!,
+            reviews: state.reviews
+              .filter((review) => review.pullRequestId === pr.id)
+              .map((review) => ({ ...review, reviewer: state.agents.find((agent) => agent.id === review.reviewerId)! })),
+          }))
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        const discussions = state.discussions
+          .filter((discussion) => discussion.repositoryId === repository.id)
+          .map((discussion) => ({
+            ...discussion,
+            author: state.agents.find((agent) => agent.id === discussion.authorId)!,
+            messages: state.messages
+              .filter((message) => message.discussionId === discussion.id)
+              .map((message) => ({ ...message, author: state.agents.find((agent) => agent.id === message.authorId)! })),
+          }))
+          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+        const commits = state.commits
+          .filter((commit) => commit.repositoryId === repository.id)
+          .map((commit) => ({ ...commit, author: state.agents.find((agent) => agent.id === commit.authorId)! }));
+        const events = state.events
+          .filter((event) => event.repositoryId === repository.id)
+          .slice(0, 20)
+          .map((event) => ({ ...event, actor: state.agents.find((agent) => agent.id === event.actorId) ?? null }));
+
+        return { ...repository, owner, pullRequests, discussions, commits, events };
+      })
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+    const events = state.events.slice(0, 40).map((event) => ({
+      ...event,
+      actor: state.agents.find((agent) => agent.id === event.actorId) ?? null,
+      repository: state.repositories.find((repository) => repository.id === event.repositoryId) ?? null,
+    }));
+
+    const metrics = {
+      agents: state.agents.length,
+      repositories: repositories.length,
+      activeRepositories: repositories.filter((repo) => repo.status === "ACTIVE").length,
+      pullRequests: state.pullRequests.length,
+      mergedPullRequests: state.pullRequests.filter((pr) => pr.status === "MERGED").length,
+      discussions: state.discussions.length,
+    };
+
+    return { agents: state.agents, repositories, events, metrics, policy: { minApprovals: forgeConfig.minApprovals } };
+  }
+
+  const [agents, repositories, events] = await Promise.all([
+    db.agent.findMany({ orderBy: { name: "asc" } }),
+    db.repository.findMany({
+      include: {
+        owner: true,
+        pullRequests: {
+          include: {
+            author: true,
+            reviews: { include: { reviewer: true }, orderBy: { createdAt: "asc" } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        discussions: {
+          include: {
+            author: true,
+            messages: { include: { author: true }, orderBy: { createdAt: "asc" } },
+          },
+          orderBy: { updatedAt: "desc" },
+        },
+        commits: { include: { author: true }, orderBy: { createdAt: "desc" } },
+        events: { include: { actor: true }, orderBy: { createdAt: "desc" }, take: 20 },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+    db.auditEvent.findMany({ include: { actor: true, repository: true }, orderBy: { createdAt: "desc" }, take: 40 }),
+  ]);
+
+  const metrics = {
+    agents: agents.length,
+    repositories: repositories.length,
+    activeRepositories: repositories.filter((repo) => repo.status === RepositoryStatus.ACTIVE).length,
+    pullRequests: repositories.reduce((total, repo) => total + repo.pullRequests.length, 0),
+    mergedPullRequests: repositories.reduce(
+      (total, repo) => total + repo.pullRequests.filter((pr) => pr.status === PullRequestStatus.MERGED).length,
+      0,
+    ),
+    discussions: repositories.reduce((total, repo) => total + repo.discussions.length, 0),
+  };
+
+  return { agents, repositories, events, metrics, policy: { minApprovals: forgeConfig.minApprovals } };
+}
+
+export async function createRepository(input: {
+  agentId: string;
+  name: string;
+  description: string;
+  primaryLanguage: string;
+  technologyStack: string[];
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await ensureFileSeedAgents();
+    const owner = state.agents.find((agent) => agent.id === input.agentId)!;
+    const slug = createRepoSlug(input.name);
+    const disk = await createRepositoryOnDisk({
+      slug,
+      name: input.name,
+      description: input.description,
+      primaryLanguage: input.primaryLanguage,
+      ownerName: owner.name,
+    });
+    const createdAt = new Date().toISOString();
+    const repository = {
+      id: createId(),
+      slug,
+      name: input.name,
+      description: input.description,
+      primaryLanguage: input.primaryLanguage,
+      technologyStack: input.technologyStack,
+      status: "ACTIVE",
+      repoPath: disk.repoPath,
+      defaultBranch: "main",
+      ownerId: owner.id,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    state.repositories.unshift(repository);
+    state.commits.unshift({
+      id: createId(),
+      repositoryId: repository.id,
+      authorId: owner.id,
+      branch: "main",
+      hash: disk.hash,
+      message: "Bootstrap repository",
+      language: input.primaryLanguage,
+      stackDelta: input.technologyStack,
+      createdAt,
+    });
+    await writeStore(state);
+    await createAuditEvent({ repositoryId: repository.id, actorId: owner.id, eventType: "repo.created", summary: `${owner.name} created ${repository.name}`, metadata: { primaryLanguage: repository.primaryLanguage } });
+    return { ...repository, owner };
+  }
+
+  const owner = await db.agent.findUniqueOrThrow({ where: { id: input.agentId } });
+  const slug = createRepoSlug(input.name);
+  const disk = await createRepositoryOnDisk({
+    slug,
+    name: input.name,
+    description: input.description,
+    primaryLanguage: input.primaryLanguage,
+    ownerName: owner.name,
+  });
+
+  const repository = await db.repository.create({
+    data: {
+      slug,
+      name: input.name,
+      description: input.description,
+      primaryLanguage: input.primaryLanguage,
+      technologyStack: input.technologyStack,
+      repoPath: disk.repoPath,
+      ownerId: owner.id,
+      commits: {
+        create: {
+          authorId: owner.id,
+          branch: "main",
+          hash: disk.hash,
+          message: "Bootstrap repository",
+          language: input.primaryLanguage,
+          stackDelta: toPrismaJson(input.technologyStack),
+        },
+      },
+    },
+    include: { owner: true },
+  });
+
+  await createAuditEvent({
+    repositoryId: repository.id,
+    actorId: owner.id,
+    eventType: "repo.created",
+    summary: `${owner.name} created ${repository.name}`,
+    metadata: { primaryLanguage: repository.primaryLanguage },
+  });
+
+  return repository;
+}
+
+export async function updateRepository(repositoryId: string, input: {
+  description?: string;
+  primaryLanguage?: string;
+  technologyStack?: string[];
+  status?: RepositoryStatus;
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const repository = state.repositories.find((item) => item.id === repositoryId);
+    if (!repository) {
+      throw new Error(`Repository ${repositoryId} not found.`);
+    }
+    if (input.description !== undefined) repository.description = input.description;
+    if (input.primaryLanguage !== undefined) repository.primaryLanguage = input.primaryLanguage;
+    if (input.technologyStack !== undefined) repository.technologyStack = input.technologyStack;
+    if (input.status !== undefined) repository.status = input.status;
+    repository.updatedAt = new Date().toISOString();
+    await writeStore(state);
+    await createAuditEvent({ repositoryId: repository.id, eventType: "repo.updated", summary: `Repository profile updated for ${repository.name}`, metadata: { status: repository.status } });
+    return repository;
+  }
+
+  const repository = await db.repository.update({
+    where: { id: repositoryId },
+    data: {
+      description: input.description,
+      primaryLanguage: input.primaryLanguage,
+      technologyStack: input.technologyStack,
+      status: input.status,
+    },
+  });
+
+  await createAuditEvent({
+    repositoryId: repository.id,
+    eventType: "repo.updated",
+    summary: `Repository profile updated for ${repository.name}`,
+    metadata: { status: repository.status },
+  });
+
+  return repository;
+}
+
+export async function deleteRepository(repositoryId: string, input: { agentId: string; reason: string }) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const repository = state.repositories.find((item) => item.id === repositoryId);
+    if (!repository) {
+      throw new Error(`Repository ${repositoryId} not found.`);
+    }
+    repository.status = "DELETED";
+    repository.updatedAt = new Date().toISOString();
+    await writeStore(state);
+    await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, eventType: "repo.deleted", summary: `Repository ${repository.name} deleted`, metadata: { reason: input.reason } });
+    return repository;
+  }
+
+  const repository = await db.repository.update({
+    where: { id: repositoryId },
+    data: { status: RepositoryStatus.DELETED },
+  });
+
+  await createAuditEvent({
+    repositoryId: repository.id,
+    actorId: input.agentId,
+    eventType: "repo.deleted",
+    summary: `Repository ${repository.name} deleted`,
+    metadata: { reason: input.reason },
+  });
+
+  return repository;
+}
+
+export async function createDiscussion(repositoryId: string, input: {
+  agentId: string;
+  title: string;
+  channel: string;
+  text: string;
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const createdAt = new Date().toISOString();
+    const discussion = {
+      id: createId(),
+      repositoryId,
+      authorId: input.agentId,
+      title: input.title,
+      channel: input.channel,
+      status: "OPEN",
+      createdAt,
+      updatedAt: createdAt,
+    };
+    const message = { id: createId(), discussionId: discussion.id, authorId: input.agentId, text: input.text, createdAt };
+    state.discussions.unshift(discussion);
+    state.messages.push(message);
+    const repository = state.repositories.find((item) => item.id === repositoryId)!;
+    repository.updatedAt = createdAt;
+    await writeStore(state);
+    const author = state.agents.find((agent) => agent.id === input.agentId)!;
+    await createAuditEvent({ repositoryId, actorId: input.agentId, eventType: "discussion.created", summary: `${author.name} opened discussion '${discussion.title}'` });
+    return { ...discussion, author, messages: [{ ...message, author }], repository };
+  }
+
+  const discussion = await db.discussion.create({
+    data: {
+      repositoryId,
+      authorId: input.agentId,
+      title: input.title,
+      channel: input.channel,
+      messages: {
+        create: {
+          authorId: input.agentId,
+          text: input.text,
+        },
+      },
+    },
+    include: {
+      author: true,
+      messages: { include: { author: true } },
+      repository: true,
+    },
+  });
+
+  await createAuditEvent({
+    repositoryId,
+    actorId: input.agentId,
+    eventType: "discussion.created",
+    summary: `${discussion.author.name} opened discussion '${discussion.title}'`,
+  });
+
+  return discussion;
+}
+
+export async function replyDiscussion(discussionId: string, input: { agentId: string; text: string }) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const discussion = state.discussions.find((item) => item.id === discussionId);
+    if (!discussion) {
+      throw new Error(`Discussion ${discussionId} not found.`);
+    }
+    const createdAt = new Date().toISOString();
+    const message = { id: createId(), discussionId, authorId: input.agentId, text: input.text, createdAt };
+    state.messages.push(message);
+    discussion.updatedAt = createdAt;
+    await writeStore(state);
+    const author = state.agents.find((agent) => agent.id === input.agentId)!;
+    const repository = state.repositories.find((item) => item.id === discussion.repositoryId);
+    if (!repository) {
+      throw new Error(`Repository ${discussion.repositoryId} not found.`);
+    }
+    await createAuditEvent({ repositoryId: discussion.repositoryId, actorId: input.agentId, eventType: "discussion.replied", summary: `${author.name} replied in '${discussion.title}'` });
+    return { ...message, author, discussion: { ...discussion, repositoryId: repository.id, repository } };
+  }
+
+  const message = await db.discussionMessage.create({
+    data: {
+      discussionId,
+      authorId: input.agentId,
+      text: input.text,
+    },
+    include: {
+      author: true,
+      discussion: { include: { repository: true } },
+    },
+  });
+
+  await db.discussion.update({ where: { id: discussionId }, data: { updatedAt: new Date() } });
+
+  await createAuditEvent({
+    repositoryId: message.discussion.repositoryId,
+    actorId: input.agentId,
+    eventType: "discussion.replied",
+    summary: `${message.author.name} replied in '${message.discussion.title}'`,
+  });
+
+  return message;
+}
+
+export async function createPullRequest(repositoryId: string, input: {
+  agentId: string;
+  title: string;
+  description: string;
+  sourceBranch: string;
+  targetBranch: string;
+  filePath: string;
+  content: string;
+  commitMessage: string;
+  language?: string;
+  stackDelta: string[];
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const repository = state.repositories.find((item) => item.id === repositoryId);
+    if (!repository) {
+      throw new Error(`Repository ${repositoryId} not found.`);
+    }
+    const commit = await commitRepositoryChange({
+      repoPath: repository.repoPath,
+      sourceBranch: input.sourceBranch,
+      targetBranch: input.targetBranch,
+      filePath: input.filePath,
+      content: input.content,
+      commitMessage: input.commitMessage,
+    });
+    const createdAt = new Date().toISOString();
+    const pullRequest = {
+      id: createId(),
+      repositoryId,
+      authorId: input.agentId,
+      title: input.title,
+      description: input.description,
+      sourceBranch: input.sourceBranch,
+      targetBranch: input.targetBranch,
+      status: "OPEN",
+      createdAt,
+      updatedAt: createdAt,
+    };
+    state.pullRequests.unshift(pullRequest);
+    state.commits.unshift({ id: createId(), repositoryId, authorId: input.agentId, branch: input.sourceBranch, hash: commit.hash, message: input.commitMessage, language: input.language, stackDelta: input.stackDelta, createdAt });
+    repository.updatedAt = createdAt;
+    await writeStore(state);
+    const author = state.agents.find((agent) => agent.id === input.agentId)!;
+    await createAuditEvent({ repositoryId, actorId: input.agentId, pullRequestId: pullRequest.id, eventType: "pr.created", summary: `${author.name} opened PR '${pullRequest.title}'`, metadata: { sourceBranch: input.sourceBranch, targetBranch: input.targetBranch } });
+    return { ...pullRequest, author, repository };
+  }
+
+  const repository = await db.repository.findUniqueOrThrow({ where: { id: repositoryId } });
+  const commit = await commitRepositoryChange({
+    repoPath: repository.repoPath,
+    sourceBranch: input.sourceBranch,
+    targetBranch: input.targetBranch,
+    filePath: input.filePath,
+    content: input.content,
+    commitMessage: input.commitMessage,
+  });
+
+  const pullRequest = await db.pullRequest.create({
+    data: {
+      repositoryId,
+      authorId: input.agentId,
+      title: input.title,
+      description: input.description,
+      sourceBranch: input.sourceBranch,
+      targetBranch: input.targetBranch,
+    },
+    include: { author: true, repository: true },
+  });
+
+  await db.gitCommit.create({
+    data: {
+      repositoryId,
+      authorId: input.agentId,
+      branch: input.sourceBranch,
+      hash: commit.hash,
+      message: input.commitMessage,
+      language: input.language,
+      stackDelta: toPrismaJson(input.stackDelta),
+    },
+  });
+
+  await createAuditEvent({
+    repositoryId,
+    actorId: input.agentId,
+    pullRequestId: pullRequest.id,
+    eventType: "pr.created",
+    summary: `${pullRequest.author.name} opened PR '${pullRequest.title}'`,
+    metadata: { sourceBranch: input.sourceBranch, targetBranch: input.targetBranch },
+  });
+
+  return pullRequest;
+}
+
+export async function reviewPullRequest(pullRequestId: string, input: {
+  agentId: string;
+  decision: ReviewDecision;
+  comment: string;
+}) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const pullRequest = state.pullRequests.find((item) => item.id === pullRequestId);
+    if (!pullRequest) {
+      throw new Error(`Pull request ${pullRequestId} not found.`);
+    }
+    const repository = state.repositories.find((item) => item.id === pullRequest.repositoryId);
+    if (!repository) {
+      throw new Error(`Repository ${pullRequest.repositoryId} not found.`);
+    }
+    const reviewer = state.agents.find((agent) => agent.id === input.agentId);
+    if (!reviewer) {
+      throw new Error(`Agent ${input.agentId} not found.`);
+    }
+    const existingReview = state.reviews.find((review) => review.pullRequestId === pullRequestId && review.reviewerId === input.agentId);
+    if (existingReview) {
+      existingReview.decision = input.decision;
+      existingReview.comment = input.comment;
+    } else {
+      state.reviews.unshift({ id: createId(), pullRequestId, reviewerId: input.agentId, decision: input.decision, comment: input.comment, createdAt: new Date().toISOString() });
+    }
+    pullRequest.updatedAt = new Date().toISOString();
+    await writeStore(state);
+    await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.reviewed", summary: `${reviewer.name} reviewed '${pullRequest.title}' with ${input.decision}`, metadata: { decision: input.decision } });
+    const reviews = state.reviews.filter((review) => review.pullRequestId === pullRequestId);
+    const approvals = reviews.filter((review) => review.decision === ReviewDecision.APPROVE).length;
+    const rejections = reviews.filter((review) => review.decision === ReviewDecision.REJECT).length;
+    if (pullRequest.status === "OPEN" && approvals >= forgeConfig.minApprovals && approvals > rejections) {
+      const merge = await mergePullRequestOnDisk({ repoPath: repository.repoPath, sourceBranch: pullRequest.sourceBranch, targetBranch: pullRequest.targetBranch });
+      pullRequest.status = "MERGED";
+      pullRequest.mergeCommitHash = merge.hash;
+      state.commits.unshift({ id: createId(), repositoryId: repository.id, authorId: input.agentId, branch: pullRequest.targetBranch, hash: merge.hash, message: `Merge PR ${pullRequest.title}`, createdAt: new Date().toISOString() });
+      repository.updatedAt = new Date().toISOString();
+      await writeStore(state);
+      await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.merged", summary: `Autonomously merged '${pullRequest.title}'`, metadata: { mergeCommitHash: merge.hash } });
+    }
+    return { reviewer, pullRequest, decision: input.decision, comment: input.comment, id: existingReview?.id ?? state.reviews[0]?.id ?? createId() };
+  }
+
+  const review = await db.pullRequestReview.upsert({
+    where: {
+      pullRequestId_reviewerId: {
+        pullRequestId,
+        reviewerId: input.agentId,
+      },
+    },
+    update: {
+      decision: input.decision,
+      comment: input.comment,
+    },
+    create: {
+      pullRequestId,
+      reviewerId: input.agentId,
+      decision: input.decision,
+      comment: input.comment,
+    },
+    include: {
+      reviewer: true,
+      pullRequest: { include: { repository: true } },
+    },
+  });
+
+  await createAuditEvent({
+    repositoryId: review.pullRequest.repositoryId,
+    actorId: input.agentId,
+    pullRequestId,
+    eventType: "pr.reviewed",
+    summary: `${review.reviewer.name} reviewed '${review.pullRequest.title}' with ${input.decision}`,
+    metadata: { decision: input.decision },
+  });
+
+  const updatedPullRequest = await db.pullRequest.findUniqueOrThrow({
+    where: { id: pullRequestId },
+    include: { reviews: true, repository: true },
+  });
+
+  const approvals = updatedPullRequest.reviews.filter((item) => item.decision === ReviewDecision.APPROVE).length;
+  const rejections = updatedPullRequest.reviews.filter((item) => item.decision === ReviewDecision.REJECT).length;
+
+  if (
+    updatedPullRequest.status === PullRequestStatus.OPEN &&
+    approvals >= forgeConfig.minApprovals &&
+    approvals > rejections
+  ) {
+    const merge = await mergePullRequestOnDisk({
+      repoPath: updatedPullRequest.repository.repoPath,
+      sourceBranch: updatedPullRequest.sourceBranch,
+      targetBranch: updatedPullRequest.targetBranch,
+    });
+
+    await db.pullRequest.update({
+      where: { id: pullRequestId },
+      data: { status: PullRequestStatus.MERGED, mergeCommitHash: merge.hash },
+    });
+
+    await db.gitCommit.create({
+      data: {
+        repositoryId: updatedPullRequest.repositoryId,
+        authorId: input.agentId,
+        branch: updatedPullRequest.targetBranch,
+        hash: merge.hash,
+        message: `Merge PR ${updatedPullRequest.title}`,
+      },
+    });
+
+    await createAuditEvent({
+      repositoryId: updatedPullRequest.repositoryId,
+      actorId: input.agentId,
+      pullRequestId,
+      eventType: "pr.merged",
+      summary: `Autonomously merged '${updatedPullRequest.title}'`,
+      metadata: { mergeCommitHash: merge.hash },
+    });
+  }
+
+  return review;
+}

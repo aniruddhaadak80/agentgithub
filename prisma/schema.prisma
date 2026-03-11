@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RepositoryStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum PullRequestStatus {
+  OPEN
+  MERGED
+  CLOSED
+}
+
+enum DiscussionStatus {
+  OPEN
+  RESOLVED
+  ARCHIVED
+}
+
+enum ReviewDecision {
+  APPROVE
+  REJECT
+  COMMENT
+}
+
+model Agent {
+  id            String              @id @default(cuid())
+  name          String              @unique
+  role          String
+  capabilities  Json
+  designBias    String
+  score         Int                 @default(0)
+  inventions    String[]
+  ownedRepos    Repository[]        @relation("RepositoryOwner")
+  pullRequests  PullRequest[]       @relation("PullRequestAuthor")
+  reviews       PullRequestReview[] @relation("ReviewAuthor")
+  discussions   Discussion[]        @relation("DiscussionAuthor")
+  messages      DiscussionMessage[] @relation("MessageAuthor")
+  commits       GitCommit[]         @relation("CommitAuthor")
+  events        AuditEvent[]        @relation("AuditActor")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model Repository {
+  id                String              @id @default(cuid())
+  slug              String              @unique
+  name              String              @unique
+  description       String
+  primaryLanguage   String
+  technologyStack   String[]
+  status            RepositoryStatus    @default(ACTIVE)
+  repoPath          String
+  defaultBranch     String              @default("main")
+  ownerId           String
+  owner             Agent               @relation("RepositoryOwner", fields: [ownerId], references: [id])
+  pullRequests      PullRequest[]
+  discussions       Discussion[]
+  events            AuditEvent[]
+  commits           GitCommit[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model PullRequest {
+  id              String              @id @default(cuid())
+  repositoryId    String
+  repository      Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          Agent               @relation("PullRequestAuthor", fields: [authorId], references: [id])
+  title           String
+  description     String
+  sourceBranch    String
+  targetBranch    String              @default("main")
+  status          PullRequestStatus   @default(OPEN)
+  mergeCommitHash String?
+  reviews         PullRequestReview[]
+  events          AuditEvent[]        @relation("PullRequestEvents")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model PullRequestReview {
+  id            String          @id @default(cuid())
+  pullRequestId String
+  pullRequest   PullRequest     @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      Agent           @relation("ReviewAuthor", fields: [reviewerId], references: [id])
+  decision      ReviewDecision
+  comment       String
+  createdAt     DateTime        @default(now())
+
+  @@unique([pullRequestId, reviewerId])
+}
+
+model Discussion {
+  id            String              @id @default(cuid())
+  repositoryId  String
+  repository    Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        Agent               @relation("DiscussionAuthor", fields: [authorId], references: [id])
+  title         String
+  channel       String
+  status        DiscussionStatus    @default(OPEN)
+  messages      DiscussionMessage[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model DiscussionMessage {
+  id            String      @id @default(cuid())
+  discussionId  String
+  discussion    Discussion  @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        Agent       @relation("MessageAuthor", fields: [authorId], references: [id])
+  text          String
+  createdAt     DateTime    @default(now())
+}
+
+model GitCommit {
+  id            String      @id @default(cuid())
+  repositoryId  String
+  repository    Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        Agent       @relation("CommitAuthor", fields: [authorId], references: [id])
+  branch        String
+  hash          String      @unique
+  message       String
+  language      String?
+  stackDelta    Json?
+  createdAt     DateTime    @default(now())
+}
+
+model AuditEvent {
+  id            String       @id @default(cuid())
+  repositoryId  String?
+  repository    Repository?  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  actorId       String?
+  actor         Agent?       @relation("AuditActor", fields: [actorId], references: [id])
+  pullRequestId String?
+  pullRequest   PullRequest? @relation("PullRequestEvents", fields: [pullRequestId], references: [id], onDelete: Cascade)
+  eventType     String
+  summary       String
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([repositoryId, createdAt])
+  @@index([eventType, createdAt])
+}

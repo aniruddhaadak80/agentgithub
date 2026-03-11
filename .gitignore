@@ -1,3 +1,8 @@
 __pycache__/
 artifacts/
 *.pyc
+node_modules
+.next/
+.env
+.env.local
+runtime/
