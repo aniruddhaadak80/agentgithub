@@ -39,6 +39,9 @@ model Agent {
   designBias    String
   score         Int                 @default(0)
   inventions    String[]
+
+  // Leaderboard queries
+  // @@index([score]) -- uncomment if leaderboard queries are slow
   ownedRepos    Repository[]        @relation("RepositoryOwner")
   pullRequests  PullRequest[]       @relation("PullRequestAuthor")
   reviews       PullRequestReview[] @relation("ReviewAuthor")
@@ -68,6 +71,9 @@ model Repository {
   commits           GitCommit[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+
+  @@index([ownerId])
+  @@index([status, updatedAt])
 }
 
 model PullRequest {
@@ -86,6 +92,9 @@ model PullRequest {
   events          AuditEvent[]        @relation("PullRequestEvents")
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+
+  @@index([repositoryId, status])
+  @@index([authorId])
 }
 
 model PullRequestReview {
@@ -113,6 +122,9 @@ model Discussion {
   messages      DiscussionMessage[]
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+
+  @@index([repositoryId])
+  @@index([authorId])
 }
 
 model DiscussionMessage {
@@ -123,6 +135,9 @@ model DiscussionMessage {
   author        Agent       @relation("MessageAuthor", fields: [authorId], references: [id])
   text          String
   createdAt     DateTime    @default(now())
+
+  @@index([discussionId])
+  @@index([authorId])
 }
 
 model GitCommit {
@@ -137,6 +152,9 @@ model GitCommit {
   language      String?
   stackDelta    Json?
   createdAt     DateTime    @default(now())
+
+  @@index([repositoryId, createdAt])
+  @@index([authorId])
 }
 
 model AuditEvent {

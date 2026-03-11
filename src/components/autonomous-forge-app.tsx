@@ -381,6 +381,16 @@ export function AutonomousForgeApp() {
     await submitJson(`/api/repos/${deleteForm.repositoryId}`, "DELETE", deleteForm, "Repository marked deleted.");
   }
 
+  async function handleCloseDiscussion(discussionId: string, agentId: string, newStatus: string) {
+    await submitJson(`/api/discussions/${discussionId}`, "PATCH", { agentId, status: newStatus }, `Discussion ${newStatus.toLowerCase()}.`);
+  }
+
+  async function handleClosePr(pullRequestId: string, agentId: string) {
+    await submitJson(`/api/pull-requests/${pullRequestId}`, "PATCH", { agentId }, "Pull request closed.");
+  }
+
+  const sortedAgents = state ? [...state.agents].sort((a, b) => b.score - a.score) : [];
+
   if (!isLoaded) {
     return <main className="shell"><div className="loading">Booting Clerk...</div></main>;
   }
@@ -596,6 +606,24 @@ export function AutonomousForgeApp() {
           <FormTextarea label="Reason" value={deleteForm.reason} onChange={(value) => setDeleteForm((current) => ({ ...current, reason: value }))} placeholder="Document why the repo is being retired." />
           <ActionButton busy={isPending} onClick={() => startTransition(() => void handleDeleteRepository())}>Delete repository</ActionButton>
         </div>
+
+        <div className="panel command-panel">
+          <h2>Close Pull Request</h2>
+          <FormSelect label="Open PR" value={reviewForm.pullRequestId} onChange={(value) => setReviewForm((current) => ({ ...current, pullRequestId: value }))} options={state.repositories.flatMap((repository) => repository.pullRequests.filter((pr) => pr.status === "OPEN").map((pr) => ({ value: pr.id, label: `${repository.name} · ${pr.title}` })))} />
+          <FormSelect label="Agent" value={reviewForm.agentId} onChange={(value) => setReviewForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
+          <ActionButton busy={isPending} onClick={() => startTransition(() => void handleClosePr(reviewForm.pullRequestId, reviewForm.agentId))}>Close PR without merge</ActionButton>
+        </div>
+
+        <div className="panel command-panel">
+          <h2>Manage Discussion Status</h2>
+          <FormSelect label="Discussion" value={replyForm.discussionId} onChange={(value) => setReplyForm((current) => ({ ...current, discussionId: value }))} options={state.repositories.flatMap((repository) => repository.discussions.map((d) => ({ value: d.id, label: `${repository.name} · ${d.title} (${d.status ?? "OPEN"})` })))} />
+          <FormSelect label="Agent" value={replyForm.agentId} onChange={(value) => setReplyForm((current) => ({ ...current, agentId: value }))} options={state.agents.map((agent) => ({ value: agent.id, label: agent.name }))} />
+          <div className="split-row">
+            <ActionButton busy={isPending} onClick={() => startTransition(() => void handleCloseDiscussion(replyForm.discussionId, replyForm.agentId, "RESOLVED"))}>Resolve</ActionButton>
+            <ActionButton busy={isPending} onClick={() => startTransition(() => void handleCloseDiscussion(replyForm.discussionId, replyForm.agentId, "ARCHIVED"))}>Archive</ActionButton>
+            <ActionButton busy={isPending} onClick={() => startTransition(() => void handleCloseDiscussion(replyForm.discussionId, replyForm.agentId, "OPEN"))}>Reopen</ActionButton>
+          </div>
+        </div>
       </section>
 
       <section className="repo-spotlight-grid reveal-up delay-4">
@@ -717,13 +745,13 @@ export function AutonomousForgeApp() {
         )}
       <section className="lower-grid reveal-up delay-4">
         <div className="panel">
-          <h2>Agents</h2>
+          <h2>Agent Leaderboard</h2>
           <div className="agent-grid">
-            {state.agents.map((agent) => (
-              <article className="agent-card" key={agent.id}>
+            {sortedAgents.map((agent, index) => (
+              <article className={`agent-card${index === 0 && agent.score > 0 ? " agent-card-top-rank" : ""}`} key={agent.id}>
                 <div className="agent-card-top">
                   <div>
-                    <h3>{agent.name}</h3>
+                    <h3>{index < 3 && agent.score > 0 ? <span className="rank-badge">{["🥇", "🥈", "🥉"][index]}</span> : null} {agent.name}</h3>
                     <p>{agent.role}</p>
                   </div>
                   <span className="score-pill">{agent.score}</span>

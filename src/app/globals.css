@@ -1518,3 +1518,334 @@ select {
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   ENHANCED RESPONSIVE DESIGN & STYLE POLISH
+   ═══════════════════════════════════════════════════ */
+
+/* ── Card Hover Effects ── */
+.repo-card,
+.agent-card,
+.branch-card,
+.commit-card {
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.repo-card:hover,
+.agent-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(142, 216, 255, 0.2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+.mini-card {
+  transition: border-color 200ms ease;
+}
+
+.mini-card:hover {
+  border-color: rgba(142, 216, 255, 0.18);
+}
+
+/* ── Agent Leaderboard Rank ── */
+.agent-card-top-rank {
+  border-color: rgba(255, 184, 108, 0.35);
+  background: linear-gradient(135deg, rgba(255, 184, 108, 0.08), var(--panel-strong));
+}
+
+.rank-badge {
+  font-size: 1.1rem;
+  margin-right: 2px;
+}
+
+/* ── Metric Card Polish ── */
+.metric-card {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Event Dot Pulse ── */
+.event-item:first-child .event-dot {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(127, 255, 212, 0.4); }
+  50% { box-shadow: 0 0 28px rgba(127, 255, 212, 0.7); }
+}
+
+/* ── Status Badge Colors (Merged/Closed/Open/Resolved) ── */
+.repo-status-open { color: var(--ice); }
+.repo-status-merged { color: var(--success); }
+.repo-status-closed { color: var(--danger); }
+.repo-status-resolved { color: var(--mint); }
+
+/* ── Scrollbar Styling ── */
+.event-list::-webkit-scrollbar,
+.mini-list::-webkit-scrollbar,
+.commit-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.event-list::-webkit-scrollbar-thumb,
+.mini-list::-webkit-scrollbar-thumb,
+.commit-list::-webkit-scrollbar-thumb {
+  background: rgba(142, 216, 255, 0.15);
+  border-radius: 999px;
+}
+
+.event-list::-webkit-scrollbar-track,
+.mini-list::-webkit-scrollbar-track,
+.commit-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Focus States for Accessibility ── */
+.action-button:focus-visible,
+.ghost-button:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+.search-input:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 2px;
+}
+
+/* ── Smooth Input Transitions ── */
+.field input,
+.field textarea,
+.field select,
+.search-input {
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.search-input:focus {
+  border-color: rgba(142, 216, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(142, 216, 255, 0.08);
+}
+
+/* ── Diff Block Improvements ── */
+.diff-block {
+  max-height: 300px;
+  overflow: auto;
+  scroll-behavior: smooth;
+}
+
+/* ── Panel Headings Accent Line ── */
+.panel > h2:first-child,
+.panel > h2:first-of-type {
+  position: relative;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(143, 211, 199, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════
+   TABLET BREAKPOINT (480px)
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .shell {
+    width: calc(100vw - 12px);
+    padding-top: 8px;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.8rem, 6vw, 3rem);
+    line-height: 1.05;
+  }
+
+  .panel {
+    border-radius: 16px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 14px;
+  }
+
+  .metric-card strong {
+    font-size: 1.5rem;
+    margin-top: 6px;
+  }
+
+  .agent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .repo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .branch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .observer-bar {
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .observer-bar-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hero-status-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .status-pill,
+  .language-pill,
+  .score-pill {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+
+  .stack-pill {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    padding: 5px 10px;
+  }
+
+  .detail-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .detail-header,
+  .detail-panel,
+  .command-panel,
+  .marketing-card,
+  .health-card {
+    padding: 14px;
+  }
+
+  .action-button {
+    padding: 12px 14px;
+    font-size: 0.88rem;
+  }
+
+  .ghost-button {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .export-btn {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  .insight-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .insight-chip {
+    padding: 10px;
+  }
+
+  .insight-chip strong {
+    font-size: 1.1rem;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .toast-item {
+    max-width: 100%;
+    font-size: 0.82rem;
+    padding: 10px 14px;
+  }
+
+  .split-row {
+    gap: 8px;
+  }
+
+  .compact-stack-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .site-header-inner {
+    min-height: 56px;
+    padding: 0 8px;
+  }
+
+  .hero-visual {
+    max-width: 100%;
+  }
+
+  .hero-visual img {
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════════════ */
+@media print {
+  .ambient,
+  .toast-container,
+  .site-header,
+  .action-button,
+  .ghost-button,
+  .export-btn {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  .panel {
+    border: 1px solid #ddd;
+    background: white;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up {
+    animation: none;
+  }
+
+  .toast-item,
+  .toast-item.toast-fade {
+    animation: none;
+  }
+
+  .repo-card:hover,
+  .agent-card:hover,
+  .metric-card:hover {
+    transform: none;
+  }
+
+  .event-item:first-child .event-dot {
+    animation: none;
+  }
+}

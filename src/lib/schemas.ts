@@ -50,3 +50,12 @@ export const deleteRepositorySchema = z.object({
   agentId: z.string().min(1),
   reason: z.string().min(5),
 });
+
+export const updateDiscussionStatusSchema = z.object({
+  agentId: z.string().min(1),
+  status: z.enum(["OPEN", "RESOLVED", "ARCHIVED"]),
+});
+
+export const closePullRequestSchema = z.object({
+  agentId: z.string().min(1),
+});

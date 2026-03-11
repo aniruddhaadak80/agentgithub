@@ -586,6 +586,109 @@ export async function replyDiscussion(discussionId: string, input: { agentId: st
   return message;
 }
 
+export async function updateDiscussionStatus(discussionId: string, input: { agentId: string; status: "OPEN" | "RESOLVED" | "ARCHIVED" }) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const discussion = state.discussions.find((item) => item.id === discussionId);
+    if (!discussion) {
+      throw new Error(`Discussion ${discussionId} not found.`);
+    }
+    const previous = discussion.status ?? "OPEN";
+    discussion.status = input.status;
+    discussion.updatedAt = new Date().toISOString();
+    await writeStore(state);
+    const actor = state.agents.find((agent) => agent.id === input.agentId);
+    await createAuditEvent({ repositoryId: discussion.repositoryId, actorId: input.agentId, eventType: "discussion.status", summary: `${actor?.name ?? "Agent"} changed discussion '${discussion.title}' from ${previous} to ${input.status}` });
+    return discussion;
+  }
+
+  const discussion = await db.discussion.update({
+    where: { id: discussionId },
+    data: { status: input.status as import("@prisma/client").DiscussionStatus },
+    include: { author: true, repository: true },
+  });
+
+  await createAuditEvent({
+    repositoryId: discussion.repositoryId,
+    actorId: input.agentId,
+    eventType: "discussion.status",
+    summary: `${discussion.author.name} changed discussion '${discussion.title}' to ${input.status}`,
+  });
+
+  return discussion;
+}
+
+export async function closePullRequest(pullRequestId: string, input: { agentId: string }) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const pullRequest = state.pullRequests.find((item) => item.id === pullRequestId);
+    if (!pullRequest) {
+      throw new Error(`Pull request ${pullRequestId} not found.`);
+    }
+    if (pullRequest.status !== "OPEN") {
+      throw new Error(`Pull request is ${pullRequest.status}, only OPEN PRs can be closed.`);
+    }
+    pullRequest.status = "CLOSED";
+    pullRequest.updatedAt = new Date().toISOString();
+    await writeStore(state);
+    const actor = state.agents.find((agent) => agent.id === input.agentId);
+    const repository = state.repositories.find((item) => item.id === pullRequest.repositoryId);
+    await createAuditEvent({ repositoryId: pullRequest.repositoryId, actorId: input.agentId, pullRequestId, eventType: "pr.closed", summary: `${actor?.name ?? "Agent"} closed PR '${pullRequest.title}'` });
+    return { pullRequest, repository };
+  }
+
+  const pullRequest = await db.pullRequest.findUniqueOrThrow({
+    where: { id: pullRequestId },
+    include: { author: true, repository: true },
+  });
+
+  if (pullRequest.status !== "OPEN") {
+    throw new Error(`Pull request is ${pullRequest.status}, only OPEN PRs can be closed.`);
+  }
+
+  await db.pullRequest.update({
+    where: { id: pullRequestId },
+    data: { status: "CLOSED" as import("@prisma/client").PullRequestStatus },
+  });
+
+  await createAuditEvent({
+    repositoryId: pullRequest.repositoryId,
+    actorId: input.agentId,
+    pullRequestId,
+    eventType: "pr.closed",
+    summary: `${pullRequest.author.name} closed PR '${pullRequest.title}'`,
+  });
+
+  return pullRequest;
+}
+
+export async function getAgentStats(agentId: string) {
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const agent = state.agents.find((a) => a.id === agentId);
+    if (!agent) return null;
+    const repos = state.repositories.filter((r) => r.ownerId === agentId).length;
+    const prs = state.pullRequests.filter((pr) => pr.authorId === agentId).length;
+    const mergedPrs = state.pullRequests.filter((pr) => pr.authorId === agentId && pr.status === "MERGED").length;
+    const reviews = state.reviews.filter((r) => r.reviewerId === agentId).length;
+    const discussions = state.discussions.filter((d) => d.authorId === agentId).length;
+    const commits = state.commits.filter((c) => c.authorId === agentId).length;
+    return { agent, stats: { repos, prs, mergedPrs, reviews, discussions, commits } };
+  }
+
+  const agent = await db.agent.findUnique({ where: { id: agentId } });
+  if (!agent) return null;
+  const [repos, prs, mergedPrs, reviews, discussions, commits] = await Promise.all([
+    db.repository.count({ where: { ownerId: agentId } }),
+    db.pullRequest.count({ where: { authorId: agentId } }),
+    db.pullRequest.count({ where: { authorId: agentId, status: "MERGED" } }),
+    db.pullRequestReview.count({ where: { reviewerId: agentId } }),
+    db.discussion.count({ where: { authorId: agentId } }),
+    db.gitCommit.count({ where: { authorId: agentId } }),
+  ]);
+  return { agent, stats: { repos, prs, mergedPrs, reviews, discussions, commits } };
+}
+
 export async function createPullRequest(repositoryId: string, input: {
   agentId: string;
   title: string;
