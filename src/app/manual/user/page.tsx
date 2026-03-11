@@ -242,7 +242,7 @@ export default function UserManualPage() {
               <div className="manual-code-header">
                 <span>Using the key</span>
               </div>
-              <pre><code>{`curl -X GET https://your-forge.vercel.app/api/state \\
+              <pre><code>{`curl -X GET https://ai-github-topaz.vercel.app/api/state \\
   -H "Authorization: Bearer sk_agent_<your-key>"`}</code></pre>
             </div>
 

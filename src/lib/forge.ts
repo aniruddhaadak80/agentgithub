@@ -798,6 +798,9 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     if (!pullRequest) {
       throw new Error(`Pull request ${pullRequestId} not found.`);
     }
+    if (pullRequest.authorId === input.agentId) {
+      throw new Error("Self-review is not allowed. A different agent must review this PR.");
+    }
     const repository = state.repositories.find((item) => item.id === pullRequest.repositoryId);
     if (!repository) {
       throw new Error(`Repository ${pullRequest.repositoryId} not found.`);
@@ -821,14 +824,18 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     const approvals = reviews.filter((review) => review.decision === ReviewDecision.APPROVE).length;
     const rejections = reviews.filter((review) => review.decision === ReviewDecision.REJECT).length;
     if (pullRequest.status === "OPEN" && approvals >= forgeConfig.minApprovals && approvals > rejections) {
-      const merge = await mergePullRequestOnDisk({ repoPath: repository.repoPath, sourceBranch: pullRequest.sourceBranch, targetBranch: pullRequest.targetBranch });
-      pullRequest.status = "MERGED";
-      pullRequest.mergeCommitHash = merge.hash;
-      state.commits.unshift({ id: createId(), repositoryId: repository.id, authorId: input.agentId, branch: pullRequest.targetBranch, hash: merge.hash, message: `Merge PR ${pullRequest.title}`, createdAt: new Date().toISOString() });
-      repository.updatedAt = new Date().toISOString();
-      await writeStore(state);
-      await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.merged", summary: `Autonomously merged '${pullRequest.title}'`, metadata: { mergeCommitHash: merge.hash } });
-      await incrementAgentScore(pullRequest.authorId, 15);
+      try {
+        const merge = await mergePullRequestOnDisk({ repoPath: repository.repoPath, sourceBranch: pullRequest.sourceBranch, targetBranch: pullRequest.targetBranch });
+        pullRequest.status = "MERGED";
+        pullRequest.mergeCommitHash = merge.hash;
+        state.commits.unshift({ id: createId(), repositoryId: repository.id, authorId: input.agentId, branch: pullRequest.targetBranch, hash: merge.hash, message: `Merge PR ${pullRequest.title}`, createdAt: new Date().toISOString() });
+        repository.updatedAt = new Date().toISOString();
+        await writeStore(state);
+        await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.merged", summary: `Autonomously merged '${pullRequest.title}'`, metadata: { mergeCommitHash: merge.hash } });
+        await incrementAgentScore(pullRequest.authorId, 15);
+      } catch {
+        await createAuditEvent({ repositoryId: repository.id, actorId: input.agentId, pullRequestId, eventType: "pr.merge_conflict", summary: `Merge conflict in '${pullRequest.title}' — manual resolution needed`, metadata: {} });
+      }
     }
     return { reviewer, pullRequest, decision: input.decision, comment: input.comment, id: existingReview?.id ?? state.reviews[0]?.id ?? createId() };
   }
@@ -856,6 +863,10 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     },
   });
 
+  if (review.pullRequest.authorId === input.agentId) {
+    throw new Error("Self-review is not allowed. A different agent must review this PR.");
+  }
+
   await createAuditEvent({
     repositoryId: review.pullRequest.repositoryId,
     actorId: input.agentId,
@@ -880,37 +891,48 @@ export async function reviewPullRequest(pullRequestId: string, input: {
     approvals >= forgeConfig.minApprovals &&
     approvals > rejections
   ) {
-    const merge = await mergePullRequestOnDisk({
-      repoPath: updatedPullRequest.repository.repoPath,
-      sourceBranch: updatedPullRequest.sourceBranch,
-      targetBranch: updatedPullRequest.targetBranch,
-    });
+    try {
+      const merge = await mergePullRequestOnDisk({
+        repoPath: updatedPullRequest.repository.repoPath,
+        sourceBranch: updatedPullRequest.sourceBranch,
+        targetBranch: updatedPullRequest.targetBranch,
+      });
 
-    await db.pullRequest.update({
-      where: { id: pullRequestId },
-      data: { status: PullRequestStatus.MERGED, mergeCommitHash: merge.hash },
-    });
+      await db.pullRequest.update({
+        where: { id: pullRequestId },
+        data: { status: PullRequestStatus.MERGED, mergeCommitHash: merge.hash },
+      });
 
-    await db.gitCommit.create({
-      data: {
+      await db.gitCommit.create({
+        data: {
+          repositoryId: updatedPullRequest.repositoryId,
+          authorId: input.agentId,
+          branch: updatedPullRequest.targetBranch,
+          hash: merge.hash,
+          message: `Merge PR ${updatedPullRequest.title}`,
+        },
+      });
+
+      await createAuditEvent({
         repositoryId: updatedPullRequest.repositoryId,
-        authorId: input.agentId,
-        branch: updatedPullRequest.targetBranch,
-        hash: merge.hash,
-        message: `Merge PR ${updatedPullRequest.title}`,
-      },
-    });
+        actorId: input.agentId,
+        pullRequestId,
+        eventType: "pr.merged",
+        summary: `Autonomously merged '${updatedPullRequest.title}'`,
+        metadata: { mergeCommitHash: merge.hash },
+      });
 
-    await createAuditEvent({
-      repositoryId: updatedPullRequest.repositoryId,
-      actorId: input.agentId,
-      pullRequestId,
-      eventType: "pr.merged",
-      summary: `Autonomously merged '${updatedPullRequest.title}'`,
-      metadata: { mergeCommitHash: merge.hash },
-    });
-
-    await incrementAgentScore(updatedPullRequest.authorId, 15);
+      await incrementAgentScore(updatedPullRequest.authorId, 15);
+    } catch {
+      await createAuditEvent({
+        repositoryId: updatedPullRequest.repositoryId,
+        actorId: input.agentId,
+        pullRequestId,
+        eventType: "pr.merge_conflict",
+        summary: `Merge conflict in '${updatedPullRequest.title}' — manual resolution needed`,
+        metadata: {},
+      });
+    }
   }
 
   return review;

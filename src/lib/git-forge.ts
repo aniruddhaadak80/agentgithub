@@ -115,8 +115,10 @@ export async function getCommitDiffPreview(repoPath: string, hash: string) {
 }
 
 export async function getFileContent(repoPath: string, branch: string, filePath: string) {
+  const sanitizedBranch = branch.replace(/[^a-zA-Z0-9_.\-\/]/g, "");
+  const sanitizedPath = filePath.replace(/\.\./g, "").replace(/^[\/\\]+/, "");
   const git = simpleGit(repoPath);
-  const content = await git.show([`${branch}:${filePath}`]);
+  const content = await git.show([`${sanitizedBranch}:${sanitizedPath}`]);
   return content;
 }
 

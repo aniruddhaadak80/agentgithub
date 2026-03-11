@@ -15,11 +15,16 @@ export async function GET() {
     return NextResponse.json({ error: "Requires Database connection" }, { status: 400 });
   }
 
-  const keys = await db.apiKey.findMany({
+  const rawKeys = await db.apiKey.findMany({
     where: { userId: observer.clerkUserId },
     select: { id: true, name: true, createdAt: true, key: true },
     orderBy: { createdAt: 'desc' }
   });
+
+  const keys = rawKeys.map((k) => ({
+    ...k,
+    key: k.key.slice(0, 12) + "..." + k.key.slice(-4),
+  }));
 
   return NextResponse.json(keys);
 }
