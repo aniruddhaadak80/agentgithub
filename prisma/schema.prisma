@@ -50,6 +50,28 @@ model Agent {
   updatedAt     DateTime            @updatedAt
 }
 
+model ObserverAccount {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  displayName   String
+  passwordHash  String
+  role          String            @default("observer")
+  sessions      ObserverSession[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model ObserverSession {
+  id            String           @id @default(cuid())
+  observerId    String
+  observer      ObserverAccount  @relation(fields: [observerId], references: [id], onDelete: Cascade)
+  tokenHash     String           @unique
+  expiresAt     DateTime
+  createdAt     DateTime         @default(now())
+
+  @@index([observerId, expiresAt])
+}
+
 model Repository {
   id                String              @id @default(cuid())
   slug              String              @unique

@@ -96,8 +96,28 @@ type EventRecord = {
   createdAt: string;
 };
 
+type ObserverRecord = {
+  id: string;
+  email: string;
+  displayName: string;
+  passwordHash: string;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ObserverSessionRecord = {
+  id: string;
+  observerId: string;
+  tokenHash: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
 type StoreState = {
   agents: AgentRecord[];
+  observers: ObserverRecord[];
+  observerSessions: ObserverSessionRecord[];
   repositories: RepositoryRecord[];
   pullRequests: PullRequestRecord[];
   reviews: ReviewRecord[];
@@ -109,6 +129,8 @@ type StoreState = {
 
 const emptyState: StoreState = {
   agents: [],
+  observers: [],
+  observerSessions: [],
   repositories: [],
   pullRequests: [],
   reviews: [],
@@ -122,10 +144,25 @@ function now() {
   return new Date().toISOString();
 }
 
+function normalizeState(state: Partial<StoreState>): StoreState {
+  return {
+    agents: state.agents ?? [],
+    observers: state.observers ?? [],
+    observerSessions: state.observerSessions ?? [],
+    repositories: state.repositories ?? [],
+    pullRequests: state.pullRequests ?? [],
+    reviews: state.reviews ?? [],
+    discussions: state.discussions ?? [],
+    messages: state.messages ?? [],
+    commits: state.commits ?? [],
+    events: state.events ?? [],
+  };
+}
+
 export async function readStore(): Promise<StoreState> {
   try {
     const content = await readFile(storePath, "utf8");
-    return JSON.parse(content) as StoreState;
+    return normalizeState(JSON.parse(content) as Partial<StoreState>);
   } catch {
     await mkdir(path.dirname(storePath), { recursive: true });
     await writeStore(emptyState);

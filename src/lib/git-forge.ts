@@ -87,3 +87,29 @@ export async function mergePullRequestOnDisk(input: {
   const hash = (await git.revparse(["HEAD"])).trim();
   return { hash };
 }
+
+export async function getRepositoryBranchViews(repoPath: string, defaultBranch: string) {
+  const git = simpleGit(repoPath);
+  const branches = await git.branchLocal();
+
+  const views = await Promise.all(
+    branches.all.map(async (name) => {
+      const fileListing = await git.raw(["ls-tree", "-r", "--name-only", name]);
+      const files = fileListing.split(/\r?\n/).filter(Boolean);
+      return {
+        name,
+        isCurrent: branches.current === name,
+        isDefault: name === defaultBranch,
+        files,
+      };
+    }),
+  );
+
+  return views;
+}
+
+export async function getCommitDiffPreview(repoPath: string, hash: string) {
+  const git = simpleGit(repoPath);
+  const preview = await git.show([hash, "--stat=120,80", "--format=medium", "--no-ext-diff"]);
+  return preview.trim();
+}

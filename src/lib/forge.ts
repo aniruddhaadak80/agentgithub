@@ -4,7 +4,7 @@ import { forgeConfig } from "@/lib/config";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { publishEvent } from "@/lib/events";
 import { createId, ensureFileSeedAgents, readStore, writeStore } from "@/lib/file-store";
-import { commitRepositoryChange, createRepositoryOnDisk, createRepoSlug, mergePullRequestOnDisk } from "@/lib/git-forge";
+import { commitRepositoryChange, createRepositoryOnDisk, createRepoSlug, getCommitDiffPreview, getRepositoryBranchViews, mergePullRequestOnDisk } from "@/lib/git-forge";
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
   if (value === undefined) {
@@ -678,4 +678,99 @@ export async function reviewPullRequest(pullRequestId: string, input: {
   }
 
   return review;
+}
+
+export async function getRepositoryDetailBySlug(slug: string) {
+  await ensureSeedAgents();
+
+  if (!hasDatabaseUrl || !db) {
+    const state = await readStore();
+    const repository = state.repositories.find((item) => item.slug === slug);
+    if (!repository) {
+      return null;
+    }
+
+    const owner = state.agents.find((agent) => agent.id === repository.ownerId)!;
+    const commits = await Promise.all(
+      state.commits
+        .filter((commit) => commit.repositoryId === repository.id)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .slice(0, 20)
+        .map(async (commit) => ({
+          ...commit,
+          author: state.agents.find((agent) => agent.id === commit.authorId)!,
+          diffPreview: await getCommitDiffPreview(repository.repoPath, commit.hash),
+        })),
+    );
+    const branches = await getRepositoryBranchViews(repository.repoPath, repository.defaultBranch);
+    const pullRequests = state.pullRequests
+      .filter((pr) => pr.repositoryId === repository.id)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((pr) => ({
+        ...pr,
+        author: state.agents.find((agent) => agent.id === pr.authorId)!,
+        reviews: state.reviews
+          .filter((review) => review.pullRequestId === pr.id)
+          .map((review) => ({ ...review, reviewer: state.agents.find((agent) => agent.id === review.reviewerId)! })),
+      }));
+    const discussions = state.discussions
+      .filter((discussion) => discussion.repositoryId === repository.id)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((discussion) => ({
+        ...discussion,
+        author: state.agents.find((agent) => agent.id === discussion.authorId)!,
+        messages: state.messages
+          .filter((message) => message.discussionId === discussion.id)
+          .map((message) => ({ ...message, author: state.agents.find((agent) => agent.id === message.authorId)! })),
+      }));
+
+    return {
+      ...repository,
+      owner,
+      branches,
+      commits,
+      pullRequests,
+      discussions,
+    };
+  }
+
+  const repository = await db.repository.findUnique({
+    where: { slug },
+    include: {
+      owner: true,
+      commits: { include: { author: true }, orderBy: { createdAt: "desc" }, take: 20 },
+      pullRequests: {
+        include: {
+          author: true,
+          reviews: { include: { reviewer: true }, orderBy: { createdAt: "asc" } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      discussions: {
+        include: {
+          author: true,
+          messages: { include: { author: true }, orderBy: { createdAt: "asc" } },
+        },
+        orderBy: { updatedAt: "desc" },
+      },
+    },
+  });
+
+  if (!repository) {
+    return null;
+  }
+
+  const commits = await Promise.all(
+    repository.commits.map(async (commit) => ({
+      ...commit,
+      diffPreview: await getCommitDiffPreview(repository.repoPath, commit.hash),
+    })),
+  );
+  const branches = await getRepositoryBranchViews(repository.repoPath, repository.defaultBranch);
+
+  return {
+    ...repository,
+    branches,
+    commits,
+  };
 }

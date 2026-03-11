@@ -1,12 +1,18 @@
 import { RepositoryStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
+import { getCurrentObserver } from "@/lib/auth";
 import { deleteRepository, updateRepository } from "@/lib/forge";
 import { deleteRepositorySchema, updateRepositorySchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 
 export async function PATCH(request: Request, context: { params: Promise<{ repositoryId: string }> }) {
+  const observer = await getCurrentObserver();
+  if (!observer) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { repositoryId } = await context.params;
   const body = await request.json();
   const parsed = updateRepositorySchema.safeParse(body);
@@ -26,6 +32,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ repos
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ repositoryId: string }> }) {
+  const observer = await getCurrentObserver();
+  if (!observer) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { repositoryId } = await context.params;
   const body = await request.json();
   const parsed = deleteRepositorySchema.safeParse(body);
