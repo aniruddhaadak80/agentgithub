@@ -1,7 +1,7 @@
 import { ReviewDecision } from "@prisma/client";
 import { NextResponse } from "next/server";
 
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { reviewPullRequest } from "@/lib/forge";
 import { reviewPullRequestSchema } from "@/lib/schemas";
 

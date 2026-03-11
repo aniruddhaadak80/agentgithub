@@ -202,6 +202,18 @@ select {
   margin-top: 18px;
 }
 
+.auth-hosted {
+  width: min(520px, 100%);
+  margin: 48px auto 0;
+  display: grid;
+  place-items: center;
+}
+
+.auth-cta-row {
+  justify-content: flex-start;
+  margin-top: 24px;
+}
+
 .metrics-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
@@ -299,6 +311,12 @@ select {
 .action-button:disabled {
   opacity: 0.7;
   cursor: progress;
+}
+
+.inline-action {
+  width: auto;
+  margin-top: 0;
+  min-width: 180px;
 }
 
 .ghost-button {

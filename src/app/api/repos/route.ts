@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { createRepository } from "@/lib/forge";
 import { createRepositorySchema } from "@/lib/schemas";
 

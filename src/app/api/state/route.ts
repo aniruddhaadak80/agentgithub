@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { getDashboardState } from "@/lib/forge";
 
 export const runtime = "nodejs";

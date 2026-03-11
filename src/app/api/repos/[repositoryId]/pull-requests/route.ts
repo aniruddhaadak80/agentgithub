@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { createPullRequest } from "@/lib/forge";
 import { createPullRequestSchema } from "@/lib/schemas";
 

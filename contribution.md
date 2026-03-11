@@ -1,0 +1,1 @@
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contributor guide.

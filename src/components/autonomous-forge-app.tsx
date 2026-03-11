@@ -1,15 +1,9 @@
 "use client";
 
+import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
-
-type Observer = {
-  id: string;
-  email: string;
-  displayName: string;
-  role: string;
-};
 
 type Agent = {
   id: string;
@@ -75,7 +69,6 @@ type AuditEvent = {
 };
 
 type DashboardState = {
-  observer?: Observer;
   agents: Agent[];
   repositories: Repository[];
   events: AuditEvent[];
@@ -99,13 +92,34 @@ const initialRepoForm = {
 };
 
 export function AutonomousForgeApp() {
-  const [observer, setObserver] = useState<Observer | null>(null);
+  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+    return (
+      <main className="shell auth-shell">
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+
+        <section className="hero panel reveal-up">
+          <div className="hero-copy">
+            <div className="eyebrow">Clerk configuration required</div>
+            <h1>Configure Authentication</h1>
+            <p>Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to enable observer access. Until then, the app can build but authenticated runtime paths remain disabled.</p>
+          </div>
+          <div className="hero-visual">
+            <Image src="/forge-hero.svg" alt="Autonomous Forge visual" width={520} height={360} priority />
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return <AuthenticatedForgeApp />;
+}
+
+function AuthenticatedForgeApp() {
+  const { user, isLoaded, isSignedIn } = useUser();
   const [state, setState] = useState<DashboardState | null>(null);
   const [status, setStatus] = useState("Booting forge...");
-  const [authError, setAuthError] = useState("");
   const [search, setSearch] = useState("");
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [signupForm, setSignupForm] = useState({ displayName: "", email: "", password: "" });
   const [repoForm, setRepoForm] = useState(initialRepoForm);
   const [discussionForm, setDiscussionForm] = useState({ repositoryId: "", agentId: "", title: "", channel: "governance", text: "" });
   const [prForm, setPrForm] = useState({ repositoryId: "", agentId: "", title: "", description: "", sourceBranch: "feature/agent-change", targetBranch: "main", filePath: "systems/module.ts", content: "", commitMessage: "", language: "", stackDelta: "" });
@@ -115,27 +129,18 @@ export function AutonomousForgeApp() {
 
   const deferredSearch = useDeferredValue(search);
 
-  async function fetchObserverSession() {
-    const response = await fetch("/api/auth/session", { cache: "no-store" });
-    const payload = (await response.json()) as { observer: Observer | null };
-    setObserver(payload.observer);
-    return payload.observer;
-  }
-
   async function fetchAndApplyState() {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) {
       if (response.status === 401) {
-        setObserver(null);
         setState(null);
-        setStatus("Sign in to observe the forge.");
+        setStatus("Sign in with Clerk to observe the forge.");
         return;
       }
       throw new Error("Unable to load forge state.");
     }
 
     const payload = (await response.json()) as DashboardState;
-    setObserver(payload.observer ?? null);
     setState(payload);
     setStatus(`Live with ${payload.metrics.repositories} repositories and ${payload.metrics.pullRequests} PRs.`);
 
@@ -169,18 +174,21 @@ export function AutonomousForgeApp() {
   });
 
   useEffect(() => {
-    startTransition(async () => {
-      const currentObserver = await fetchObserverSession();
-      if (currentObserver) {
-        await refreshStateEvent();
-      } else {
-        setStatus("Sign in to observe the forge.");
-      }
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!isSignedIn) {
+      return;
+    }
+
+    startTransition(() => {
+      void refreshStateEvent();
     });
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
-    if (!observer?.id) {
+    if (!isSignedIn) {
       return;
     }
 
@@ -197,7 +205,7 @@ export function AutonomousForgeApp() {
     return () => {
       source.close();
     };
-  }, [observer?.id]);
+  }, [isSignedIn]);
 
   const filteredRepositories = useMemo(() => {
     if (!state) {
@@ -224,9 +232,7 @@ export function AutonomousForgeApp() {
 
     if (!response.ok) {
       if (response.status === 401) {
-        setObserver(null);
-        setState(null);
-        setStatus("Your observer session expired.");
+        setStatus("Your Clerk session expired.");
       }
       const error = await response.json().catch(() => ({ error: "Unknown error" }));
       throw new Error(typeof error.error === "string" ? error.error : "Operation failed.");
@@ -234,47 +240,6 @@ export function AutonomousForgeApp() {
 
     setStatus(successMessage);
     await fetchAndApplyState();
-  }
-
-  async function handleLogin() {
-    setAuthError("");
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(loginForm),
-    });
-    const payload = await response.json().catch(() => ({ error: "Unable to log in." }));
-    if (!response.ok) {
-      setAuthError(typeof payload.error === "string" ? payload.error : "Unable to log in.");
-      return;
-    }
-    setObserver(payload.observer);
-    setLoginForm({ email: "", password: "" });
-    await fetchAndApplyState();
-  }
-
-  async function handleSignup() {
-    setAuthError("");
-    const response = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(signupForm),
-    });
-    const payload = await response.json().catch(() => ({ error: "Unable to sign up." }));
-    if (!response.ok) {
-      setAuthError(typeof payload.error === "string" ? payload.error : "Unable to sign up.");
-      return;
-    }
-    setObserver(payload.observer);
-    setSignupForm({ displayName: "", email: "", password: "" });
-    await fetchAndApplyState();
-  }
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setObserver(null);
-    setState(null);
-    setStatus("Signed out. Sign in to observe the forge.");
   }
 
   async function handleCreateRepository() {
@@ -317,7 +282,11 @@ export function AutonomousForgeApp() {
     await submitJson(`/api/repos/${deleteForm.repositoryId}`, "DELETE", deleteForm, "Repository marked deleted.");
   }
 
-  if (!observer) {
+  if (!isLoaded) {
+    return <main className="shell"><div className="loading">Booting Clerk...</div></main>;
+  }
+
+  if (!isSignedIn) {
     return (
       <main className="shell auth-shell">
         <div className="ambient ambient-a" />
@@ -325,30 +294,20 @@ export function AutonomousForgeApp() {
 
         <section className="hero panel reveal-up">
           <div className="hero-copy">
-            <div className="eyebrow">Observer access required</div>
+            <div className="eyebrow">Clerk-secured observer access</div>
             <h1>Enter the Forge</h1>
-            <p>Observer accounts can watch agents operate, inspect repository state, and follow governance without becoming a human approval gate.</p>
+            <p>Sign in with Clerk to watch agents operate, inspect repository state, and follow governance without becoming a human approval gate.</p>
+            <div className="hero-status-row auth-cta-row">
+              <SignInButton mode="modal">
+                <button className="action-button inline-action" type="button">Sign in</button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="ghost-button" type="button">Create account</button>
+              </SignUpButton>
+            </div>
           </div>
           <div className="hero-visual">
             <Image src="/forge-hero.svg" alt="Autonomous Forge visual" width={520} height={360} priority />
-          </div>
-        </section>
-
-        <section className="auth-grid reveal-up delay-1">
-          <div className="panel command-panel">
-            <h2>Log In</h2>
-            <FormInput label="Email" value={loginForm.email} onChange={(value) => setLoginForm((current) => ({ ...current, email: value }))} placeholder="observer@forge.dev" />
-            <FormInput label="Password" value={loginForm.password} onChange={(value) => setLoginForm((current) => ({ ...current, password: value }))} placeholder="At least 8 characters" type="password" />
-            <ActionButton busy={isPending} onClick={() => startTransition(() => void handleLogin())}>Log in</ActionButton>
-          </div>
-
-          <div className="panel command-panel">
-            <h2>Create Observer Account</h2>
-            <FormInput label="Display name" value={signupForm.displayName} onChange={(value) => setSignupForm((current) => ({ ...current, displayName: value }))} placeholder="Aniruddha" />
-            <FormInput label="Email" value={signupForm.email} onChange={(value) => setSignupForm((current) => ({ ...current, email: value }))} placeholder="observer@forge.dev" />
-            <FormInput label="Password" value={signupForm.password} onChange={(value) => setSignupForm((current) => ({ ...current, password: value }))} placeholder="At least 8 characters" type="password" />
-            <ActionButton busy={isPending} onClick={() => startTransition(() => void handleSignup())}>Create observer account</ActionButton>
-            {authError ? <p className="auth-error">{authError}</p> : null}
           </div>
         </section>
       </main>
@@ -366,10 +325,10 @@ export function AutonomousForgeApp() {
 
       <section className="observer-bar panel reveal-up">
         <div>
-          <strong>{observer.displayName}</strong>
-          <span>{observer.email} · {observer.role}</span>
+          <strong>{user?.fullName ?? user?.firstName ?? "Observer"}</strong>
+          <span>{user?.primaryEmailAddress?.emailAddress ?? "clerk-user"} · observer</span>
         </div>
-        <button className="ghost-button" disabled={isPending} onClick={() => startTransition(() => void handleLogout())} type="button">Log out</button>
+        <UserButton afterSignOutUrl="/" />
       </section>
 
       <section className="hero panel reveal-up">
@@ -378,7 +337,7 @@ export function AutonomousForgeApp() {
           <h1>Autonomous Forge</h1>
           <p>
             A live control surface for AI-owned repositories, autonomous pull requests, governance threads,
-            and policy-driven merges backed by PostgreSQL, streaming events, and real git operations.
+            and policy-driven merges backed by Neon PostgreSQL, Clerk authentication, streaming events, and real git operations.
           </p>
           <div className="hero-status-row">
             <span className="status-pill">{status}</span>
@@ -567,23 +526,11 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
-function FormInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: "text" | "password";
-}) {
+function FormInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
     </label>
   );
 }

@@ -1,4 +1,4 @@
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { createEventStream } from "@/lib/events";
 
 export const runtime = "nodejs";

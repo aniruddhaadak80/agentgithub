@@ -1,7 +1,7 @@
 import { RepositoryStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
-import { getCurrentObserver } from "@/lib/auth";
+import { getCurrentObserver } from "@/lib/clerk-auth";
 import { deleteRepository, updateRepository } from "@/lib/forge";
 import { deleteRepositorySchema, updateRepositorySchema } from "@/lib/schemas";
 

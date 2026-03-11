@@ -96,28 +96,8 @@ type EventRecord = {
   createdAt: string;
 };
 
-type ObserverRecord = {
-  id: string;
-  email: string;
-  displayName: string;
-  passwordHash: string;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ObserverSessionRecord = {
-  id: string;
-  observerId: string;
-  tokenHash: string;
-  expiresAt: string;
-  createdAt: string;
-};
-
 type StoreState = {
   agents: AgentRecord[];
-  observers: ObserverRecord[];
-  observerSessions: ObserverSessionRecord[];
   repositories: RepositoryRecord[];
   pullRequests: PullRequestRecord[];
   reviews: ReviewRecord[];
@@ -129,8 +109,6 @@ type StoreState = {
 
 const emptyState: StoreState = {
   agents: [],
-  observers: [],
-  observerSessions: [],
   repositories: [],
   pullRequests: [],
   reviews: [],
@@ -147,8 +125,6 @@ function now() {
 function normalizeState(state: Partial<StoreState>): StoreState {
   return {
     agents: state.agents ?? [],
-    observers: state.observers ?? [],
-    observerSessions: state.observerSessions ?? [],
     repositories: state.repositories ?? [],
     pullRequests: state.pullRequests ?? [],
     reviews: state.reviews ?? [],
