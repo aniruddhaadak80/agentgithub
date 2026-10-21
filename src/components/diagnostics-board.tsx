@@ -52,7 +52,11 @@ export function DiagnosticsBoard({ initialReport }: { initialReport: Diagnostics
             {statusLabel(report.status)}
           </span>
           <span className="diagnostics-updated">
-            Last checked {new Date(lastChecked).toLocaleTimeString()} (refreshes every 30s)
+            Last checked{" "}
+            <time dateTime={lastChecked} suppressHydrationWarning>
+              {new Date(lastChecked).toISOString().slice(11, 19)} UTC
+            </time>{" "}
+            (refreshes every 30s)
           </span>
         </div>
         <div className="diagnostics-counts">
