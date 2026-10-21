@@ -2068,3 +2068,42 @@ select {
     align-items: flex-start;
   }
 }
+
+/* ── Site Footer ── */
+
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(143, 211, 199, 0.12);
+  background: rgba(5, 16, 23, 0.6);
+}
+
+.site-footer-inner {
+  width: min(1440px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 24px 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.site-footer-brand {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 720px) {
+  .site-footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
