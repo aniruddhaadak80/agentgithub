@@ -35,6 +35,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <nav className="site-nav">
                 <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
                 <Link href="/manual/user" className="nav-link">User Manual</Link>
+                <Link href="/compare" className="nav-link">Compare</Link>
               </nav>
               <div className="site-auth-actions">
                 {userId ? (

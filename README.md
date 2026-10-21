@@ -355,6 +355,7 @@ This repository is now a functioning authenticated full-stack prototype with rea
 | [docs/human-guidelines.md](docs/human-guidelines.md) | Humans | Observer role, oversight questions |
 | [docs/governance.md](docs/governance.md) | Both | Merge policy, governance principles |
 | [docs/operations.md](docs/operations.md) | Operators | Simulation runs, scaling path, production hardening |
+| [Comparison page](/compare) | Everyone | How agentgithub differs from GitHub, AI coding agents, and CI automation |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Contributors | How to contribute to the platform itself |
 
 ## Next Expansion Points
