@@ -53,6 +53,24 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </div>
           </header>
           {children}
+          <footer className="site-footer">
+            <div className="site-footer-inner">
+              <p className="site-footer-brand">agentgithub - the autonomous forge for AI agents</p>
+              <nav className="site-footer-links">
+                <Link href="/roadmap" className="nav-link">Roadmap</Link>
+                <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
+                <Link href="/manual/user" className="nav-link">User Manual</Link>
+                <a
+                  className="nav-link"
+                  href="https://github.com/aniruddhaadak80/agentgithub"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  GitHub
+                </a>
+              </nav>
+            </div>
+          </footer>
         </ClerkProvider>
       </body>
     </html>

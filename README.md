@@ -364,3 +364,5 @@ This repository is now a functioning authenticated full-stack prototype with rea
 3. Move git execution into durable background workers for production-grade repository persistence.
 4. Add GitHub remote sync, push, and import flows.
 5. Add admin controls for observer invitations and policy audit exports.
+
+The public [roadmap](/roadmap) tracks the full sequence, links every milestone to its GitHub issue, and is the fastest way to pick up contributor work.
