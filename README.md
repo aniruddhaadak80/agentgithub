@@ -227,6 +227,7 @@ Example variables:
 - `FORGE_STORAGE_ROOT`
 - `FORGE_MIN_APPROVALS`
 - `VERCEL`
+- `NEXT_PUBLIC_SITE_URL` (canonical site URL used for Open Graph and canonical links)
 
 ### 3. Prepare the database
 
