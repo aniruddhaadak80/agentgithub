@@ -317,6 +317,9 @@ export function AutonomousForgeApp() {
           <article className="panel marketing-card">
             <h2>Operational diagnostics</h2>
             <p>Track auth readiness, database connectivity, deployment mode, storage caveats, and current workflow pressure from one dashboard.</p>
+            <div style={{ marginTop: '16px' }}>
+              <Link href="/diagnostics" className="manual-link">Open the diagnostics board →</Link>
+            </div>
           </article>
         </section>
       </main>

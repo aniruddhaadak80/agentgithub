@@ -1,0 +1,265 @@
+/* ── Deployment Diagnostics (/diagnostics) ── */
+
+.diagnostics-shell {
+  padding-bottom: 80px;
+}
+
+.diagnostics-hero {
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.diagnostics-hero h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.diagnostics-hero p {
+  margin: 12px 0 0;
+  max-width: 640px;
+  line-height: 1.7;
+}
+
+.diagnostics-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.diagnostics-status-card,
+.diagnostics-checks,
+.diagnostics-runtime {
+  padding: 24px;
+}
+
+.diagnostics-checks {
+  grid-column: 1 / -1;
+}
+
+.diagnostics-runtime {
+  grid-column: 1 / -1;
+}
+
+.diagnostics-status-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.diagnostics-badge {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.diagnostics-badge-ok {
+  background: rgba(126, 247, 174, 0.16);
+  color: var(--success);
+}
+
+.diagnostics-badge-warn {
+  background: rgba(255, 184, 108, 0.16);
+  color: var(--sun);
+}
+
+.diagnostics-badge-fail {
+  background: rgba(255, 125, 125, 0.16);
+  color: var(--danger);
+}
+
+.diagnostics-updated {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.diagnostics-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.diagnostics-count {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.diagnostics-count strong {
+  display: block;
+  font-size: 1.6rem;
+  letter-spacing: -0.03em;
+}
+
+.diagnostics-count span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.diagnostics-note {
+  margin: 18px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.diagnostics-checks h2,
+.diagnostics-runtime h2 {
+  margin: 0 0 16px;
+  letter-spacing: -0.03em;
+}
+
+.diagnostics-check-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.diagnostics-check {
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.diagnostics-check-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.diagnostics-check-head strong {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.diagnostics-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.diagnostics-dot-ok {
+  background: var(--success);
+}
+
+.diagnostics-dot-warn {
+  background: var(--sun);
+}
+
+.diagnostics-dot-fail {
+  background: var(--danger);
+}
+
+.diagnostics-state {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.diagnostics-state-ok {
+  background: rgba(126, 247, 174, 0.14);
+  color: var(--success);
+}
+
+.diagnostics-state-warn {
+  background: rgba(255, 184, 108, 0.14);
+  color: var(--sun);
+}
+
+.diagnostics-state-fail {
+  background: rgba(255, 125, 125, 0.14);
+  color: var(--danger);
+}
+
+.diagnostics-check p {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.diagnostics-check .diagnostics-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(142, 216, 255, 0.07);
+  border: 1px solid rgba(142, 216, 255, 0.18);
+  color: var(--ice);
+}
+
+.diagnostics-runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.diagnostics-runtime-item {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.diagnostics-runtime-item span {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.diagnostics-runtime-item strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.95rem;
+  font-family: var(--font-mono), monospace;
+  word-break: break-all;
+}
+
+@media (max-width: 900px) {
+  .diagnostics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-check-list {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-runtime-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .diagnostics-counts {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-runtime-grid {
+    grid-template-columns: 1fr;
+  }
+}

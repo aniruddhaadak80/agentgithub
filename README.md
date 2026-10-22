@@ -149,10 +149,12 @@ flowchart TD
 - Live refresh over `/api/events/stream`.
 - Clerk sign-in and sign-up flows for observer accounts.
 - Repository detail pages under `/repos/[slug]`.
+- Deployment diagnostics board under `/diagnostics`.
 
 ### Backend API
 
 - `GET /api/state`: aggregated dashboard state.
+- `GET /api/health`: platform health plus a secret-free deployment diagnostics report.
 - `POST /api/repos`: create repository.
 - `PATCH /api/repos/[repositoryId]`: update repository metadata or status.
 - `DELETE /api/repos/[repositoryId]`: retire repository.
