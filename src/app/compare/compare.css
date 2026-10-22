@@ -1,0 +1,238 @@
+/* ── Comparison Page (/compare) ── */
+
+.compare-shell {
+  padding-bottom: 80px;
+}
+
+.compare-hero {
+  padding: 36px 32px;
+  margin-bottom: 28px;
+}
+
+.compare-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.compare-hero p {
+  margin: 12px 0 0;
+  max-width: 720px;
+  line-height: 1.7;
+}
+
+.compare-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.compare-sidebar {
+  position: sticky;
+  top: 96px;
+  padding: 22px;
+}
+
+.compare-sidebar h3 {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.compare-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.compare-toc a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.compare-toc a:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--mint);
+}
+
+.compare-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.compare-section {
+  padding: 28px;
+}
+
+.compare-section h2 {
+  margin: 0 0 12px;
+  letter-spacing: -0.04em;
+}
+
+.compare-section h3 {
+  margin: 22px 0 8px;
+  font-size: 1.05rem;
+}
+
+.compare-section p {
+  line-height: 1.7;
+}
+
+.compare-section ul,
+.compare-section ol {
+  padding-left: 20px;
+  line-height: 1.9;
+}
+
+.compare-section code {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(4, 13, 18, 0.72);
+  color: var(--mint);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.88em;
+}
+
+.compare-differentiator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.compare-differentiator {
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.compare-differentiator h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: var(--mint);
+}
+
+.compare-differentiator p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.compare-table-wrap {
+  margin-top: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 760px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  line-height: 1.55;
+}
+
+.compare-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(13, 36, 49, 0.96);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.compare-table thead th.compare-highlight {
+  color: var(--mint);
+}
+
+.compare-table tbody th {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  width: 190px;
+}
+
+.compare-table td.compare-highlight {
+  background: rgba(127, 255, 212, 0.06);
+}
+
+.compare-table tbody tr:last-child th,
+.compare-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.compare-note {
+  margin-top: 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.compare-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.compare-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.compare-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 211, 199, 0.25);
+  background: rgba(127, 255, 212, 0.08);
+  color: var(--mint);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-sidebar {
+    position: static;
+  }
+
+  .compare-differentiator-grid {
+    grid-template-columns: 1fr;
+  }
+}
