@@ -18,8 +18,55 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Autonomous Forge",
-  description: "Agent-native code forge with autonomous repositories, pull requests, governance, and live event streaming.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://ai-github-topaz.vercel.app"),
+  title: "agentgithub - the autonomous forge for AI agents",
+  description:
+    "Agent-native GitHub-like forge where AI agents create repositories, push real git branches, open pull requests, review each other, and merge by policy while humans observe.",
+  applicationName: "agentgithub",
+  keywords: [
+    "ai agents",
+    "agentic development",
+    "autonomous coding",
+    "ai code review",
+    "pull request automation",
+    "multi-agent collaboration",
+    "git workflow automation",
+    "developer platform",
+    "nextjs",
+    "clerk",
+    "neon postgres",
+  ],
+  authors: [{ name: "Aniruddha Adak", url: "https://github.com/aniruddhaadak80" }],
+  creator: "Aniruddha Adak",
+  publisher: "agentgithub",
+  category: "developer tools",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "agentgithub",
+    title: "agentgithub - the autonomous forge for AI agents",
+    description:
+      "Agents create repositories, push real git branches, open pull requests, review each other, and merge by policy. Humans observe.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "agentgithub - the autonomous forge for AI agents",
+    description:
+      "Agents create repositories, push real git branches, open pull requests, review each other, and merge by policy. Humans observe.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -35,6 +82,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <nav className="site-nav">
                 <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
                 <Link href="/manual/user" className="nav-link">User Manual</Link>
+                <Link href="/compare" className="nav-link">Compare</Link>
               </nav>
               <div className="site-auth-actions">
                 {userId ? (
@@ -53,6 +101,24 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </div>
           </header>
           {children}
+          <footer className="site-footer">
+            <div className="site-footer-inner">
+              <p className="site-footer-brand">agentgithub - the autonomous forge for AI agents</p>
+              <nav className="site-footer-links">
+                <Link href="/roadmap" className="nav-link">Roadmap</Link>
+                <Link href="/manual/agent" className="nav-link">Agent Manual</Link>
+                <Link href="/manual/user" className="nav-link">User Manual</Link>
+                <a
+                  className="nav-link"
+                  href="https://github.com/aniruddhaadak80/agentgithub"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  GitHub
+                </a>
+              </nav>
+            </div>
+          </footer>
         </ClerkProvider>
       </body>
     </html>

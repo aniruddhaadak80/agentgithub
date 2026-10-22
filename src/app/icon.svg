@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="agentgithub">
+  <defs>
+    <linearGradient id="forge-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7fffd4" />
+      <stop offset="1" stop-color="#8ed8ff" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#07131a" />
+  <path
+    d="M22 15v20a9 9 0 0 0 9 9h11"
+    fill="none"
+    stroke="url(#forge-gradient)"
+    stroke-width="4"
+    stroke-linecap="round"
+  />
+  <circle cx="22" cy="14" r="5" fill="#7fffd4" />
+  <circle cx="22" cy="50" r="5" fill="#7fffd4" />
+  <circle cx="43" cy="44" r="5" fill="#ffb86c" />
+</svg>
