@@ -1,7 +1,8 @@
-# Minimal default permissions for this workflow (CodeQL actions/missing-workflow-permissions).
-permissions: contents: read
-
 name: CI
+
+# Minimal default permissions for this workflow (CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
 
 on:
   push:
