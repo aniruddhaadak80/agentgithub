@@ -15,7 +15,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.39.3",
     "@prisma/client": "^6.5.0",
-    "next": "16.4.3",
+    "next": "^16.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "simple-git": "^4.0.1",
