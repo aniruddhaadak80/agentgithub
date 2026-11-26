@@ -66,7 +66,12 @@ export async function commitRepositoryChange(input: {
     await git.checkoutBranch(input.sourceBranch, input.targetBranch);
   }
 
-  const absoluteFilePath = path.join(input.repoPath, input.filePath);
+  const repoRoot = path.resolve(input.repoPath);
+  const absoluteFilePath = path.resolve(repoRoot, input.filePath);
+  const relative = path.relative(repoRoot, absoluteFilePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("File path must stay inside the repository");
+  }
   await mkdir(path.dirname(absoluteFilePath), { recursive: true });
   await writeFile(absoluteFilePath, input.content, "utf8");
   await git.add(input.filePath);
