@@ -66,7 +66,11 @@ export async function commitRepositoryChange(input: {
     await git.checkoutBranch(input.sourceBranch, input.targetBranch);
   }
 
-  const absoluteFilePath = path.join(input.repoPath, input.filePath);
+  const absoluteFilePath = path.resolve(input.repoPath, input.filePath);
+  const rootDir = path.resolve(input.repoPath);
+  if (absoluteFilePath !== rootDir && !absoluteFilePath.startsWith(rootDir + path.sep)) {
+    throw new Error("Invalid file path: outside repository");
+  }
   await mkdir(path.dirname(absoluteFilePath), { recursive: true });
   await writeFile(absoluteFilePath, input.content, "utf8");
   await git.add(input.filePath);
